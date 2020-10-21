@@ -1,4 +1,4 @@
-data/
+data/*hdf5
 ctf_dataset/
 googlesource-authentication.sh
 .DS_Store
