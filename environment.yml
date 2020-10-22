@@ -10,10 +10,13 @@ dependencies:
   - backcall=0.2.0=py_0
   - blas=1.0=mkl
   - bleach=3.2.1=py_0
+  - brotlipy=0.7.0=py38h7b6447c_1000
   - bzip2=1.0.8=h516909a_3
   - ca-certificates=2020.10.14=0
   - certifi=2020.6.20=py38_0
   - cffi=1.14.3=py38he30daa8_0
+  - chardet=3.0.4=py38_1003
+  - cryptography=3.1.1=py38h1ba5d50_0
   - cycler=0.10.0=py38_0
   - dbus=1.13.18=hb2f20db_0
   - decorator=4.4.2=py_0
@@ -34,6 +37,7 @@ dependencies:
   - h5py=2.10.0=py38hd6299e0_1
   - hdf5=1.10.6=hb1b8bf9_0
   - icu=58.2=he6710b0_3
+  - idna=2.10=py_0
   - importlib-metadata=2.0.0=py_1
   - importlib_metadata=2.0.0=1
   - intel-openmp=2020.2=254
@@ -45,12 +49,15 @@ dependencies:
   - jinja2=2.11.2=py_0
   - joblib=0.17.0=py_0
   - jpeg=9b=h024ee3a_2
+  - json5=0.9.5=py_0
   - jsonschema=3.2.0=py_2
   - jupyter=1.0.0=py38_7
   - jupyter_client=6.1.7=py_0
   - jupyter_console=6.2.0=py_0
   - jupyter_core=4.6.3=py38_0
+  - jupyterlab=2.2.6=py_0
   - jupyterlab_pygments=0.1.2=py_0
+  - jupyterlab_server=1.2.0=py_0
   - kiwisolver=1.2.0=py38hfd86e86_0
   - krb5=1.18.2=h173b8e3_0
   - lame=3.100=h14c3975_1001
@@ -107,9 +114,11 @@ dependencies:
   - ptyprocess=0.6.0=py38_0
   - pycparser=2.20=py_2
   - pygments=2.7.1=py_0
+  - pyopenssl=19.1.0=py_1
   - pyparsing=2.4.7=py_0
   - pyqt=5.9.2=py38h05f1152_4
   - pyrsistent=0.17.3=py38h7b6447c_0
+  - pysocks=1.7.1=py38_0
   - python=3.8.5=h7579374_1
   - python-dateutil=2.8.1=py_0
   - python_abi=3.8=1_cp38
@@ -118,6 +127,7 @@ dependencies:
   - qtconsole=4.7.7=py_0
   - qtpy=1.9.0=py_0
   - readline=8.0=h7b6447c_0
+  - requests=2.24.0=py_0
   - scikit-learn=0.23.2=py38h0573a6f_0
   - scipy=1.5.2=py38h0b6359f_0
   - send2trash=1.5.0=py38_0
@@ -131,6 +141,7 @@ dependencies:
   - tk=8.6.10=hbc83047_0
   - tornado=6.0.4=py38h7b6447c_1
   - traitlets=5.0.5=py_0
+  - urllib3=1.25.11=py_0
   - wcwidth=0.2.5=py_0
   - webencodings=0.5.1=py38_1
   - wheel=0.35.1=py_0
