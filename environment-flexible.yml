@@ -1,0 +1,14 @@
+name: ctf
+channels:
+  - defaults
+dependencies:
+  - python
+  - jupyterlab
+  - git
+  - matplotlib
+  - ffmpeg
+  - numpy
+  - scikit-learn
+  - scipy
+  - h5py
+  - ffmpeg-python
