@@ -1,4 +1,7 @@
 data/*hdf5
+data/videos*
 ctf_dataset/
 googlesource-authentication.sh
 .DS_Store
+.ipynb_checkpoints
+results/
