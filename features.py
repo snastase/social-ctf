@@ -28,7 +28,7 @@ def get_events(wrap_f, map_id=0, matchup_id=0,
                     for e in event_names.Events]
     
     # Get a subset of all events if requested
-    assert events.shape[1] == len(event_labels)
+    assert events.shape[-1] == len(event_labels)
 
     return events, event_labels
 
@@ -95,7 +95,7 @@ def get_score(wrap_f, team=None, map_id=0, matchup_id=0,
         blue_score = wrap_f[f'map/matchup/repeat/time/blue_team_score'][
             map_id, matchup_id, repeat_id, time_id
         ]
-        score = np.column_stack((red_score, blue_score))
+        score = np.concatenate((red_score, blue_score), axis=-1)
     
         score_labels = ['red score', 'blue score']
         
@@ -104,7 +104,7 @@ def get_score(wrap_f, team=None, map_id=0, matchup_id=0,
 
 # Convenience function to extract flag position
 def get_flags(wrap_f, team=None, map_id=0, matchup_id=0,
-               repeat_id=0, time_id=slice(None)):
+              repeat_id=0, time_id=slice(None)):
     
     if team and team not in ['red', 'blue']:
         raise Exception(f"Invalid team label '{team}''; "
@@ -118,7 +118,7 @@ def get_flags(wrap_f, team=None, map_id=0, matchup_id=0,
             map_id, matchup_id, repeat_id, time_id
         ]
 
-        flags = np.column_stack((position, status))
+        flags = np.concatenate((position, status), axis=-1)
 
         flag_labels = [f'{team} flag x', f'{team} flag y',
                        f'{team} flag z', f'{team} flag status']
@@ -138,7 +138,7 @@ def get_flags(wrap_f, team=None, map_id=0, matchup_id=0,
             flag_labels.extend([f'{team} flag x', f'{team} flag y',
                        f'{team} flag z', f'{team} flag status'])
 
-        flags = np.column_stack(flags)
+        flags = np.concatenate(flags, axis=-1)
         
     return flags, flag_labels
 
@@ -149,7 +149,7 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
 
     if not feature_set:
         feature_set = ['events', 'actions', 'position',
-                          'health', 'score', 'flags']
+                       'health', 'score', 'flags']
 
     features, feature_labels = [], []
 
@@ -191,9 +191,9 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
 
     if 'score' in feature_set:
         score, score_labels = get_score(wrap_f, team=team, map_id=map_id,
-                                          matchup_id=matchup_id,
-                                          repeat_id=repeat_id,
-                                          time_id=time_id)
+                                        matchup_id=matchup_id,
+                                        repeat_id=repeat_id,
+                                        time_id=time_id)
         features.append(score.astype(float))
         feature_labels.extend(score_labels)
 
@@ -205,7 +205,7 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
         features.append(flags.astype(float))
         feature_labels.extend(flag_labels)
 
-    features = np.column_stack(features)
+    features = np.concatenate(features, axis=-1)
 
     return features, feature_labels
 
@@ -217,6 +217,7 @@ if __name__ == "__main__":
     from scipy.stats import zscore
     import matplotlib.pyplot as plt
     
+    # We can't slice score and flags by player ID yet
     features, feature_labels = get_features(wrap_f)
 
     # Plot time on y-axis (vertical)
