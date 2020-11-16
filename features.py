@@ -159,7 +159,7 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
                                           repeat_id=repeat_id,
                                           player_id=player_id,
                                           time_id=time_id)
-        features.append(events)
+        features.append(events.astype(float))
         feature_labels.extend(event_labels)
 
     if 'actions' in feature_set:
@@ -168,7 +168,7 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
                                              repeat_id=repeat_id,
                                              player_id=player_id,
                                              time_id=time_id)
-        features.append(actions)
+        features.append(actions.astype(float))
         feature_labels.extend(action_labels)
 
     if 'position' in feature_set:
@@ -177,7 +177,7 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
                                                  repeat_id=repeat_id,
                                                  player_id=player_id,
                                                  time_id=time_id)
-        features.append(position)
+        features.append(position.astype(float))
         feature_labels.extend(position_labels)
 
     if 'health' in feature_set:
@@ -186,7 +186,7 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
                                            repeat_id=repeat_id,
                                            player_id=player_id,
                                            time_id=time_id)
-        features.append(health)
+        features.append(health.astype(float))
         feature_labels.extend(health_labels)
 
     if 'score' in feature_set:
@@ -194,7 +194,7 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
                                           matchup_id=matchup_id,
                                           repeat_id=repeat_id,
                                           time_id=time_id)
-        features.append(score)
+        features.append(score.astype(float))
         feature_labels.extend(score_labels)
 
     if 'flags' in feature_set:
@@ -202,11 +202,40 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
                                        matchup_id=matchup_id,
                                        repeat_id=repeat_id,
                                        time_id=time_id)
-        features.append(flags)
+        features.append(flags.astype(float))
         feature_labels.extend(flag_labels)
 
     features = np.column_stack(features)
 
     return features, feature_labels
 
-features, feature_labels = get_features(wrap_f)
+
+if __name__ == "__main__":
+
+
+    # Visualize some example feature matrix with labels
+    from scipy.stats import zscore
+    import matplotlib.pyplot as plt
+    
+    features, feature_labels = get_features(wrap_f)
+
+    # Plot time on y-axis (vertical)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.matshow(np.nan_to_num(zscore(features, axis=0))[:80],
+               vmin=-2, vmax=2, cmap='viridis')
+    ax.set_ylabel('time')
+    ax.set_xlabel('features')
+    ax.yaxis.set_tick_params(which='both', length=0)
+    ax.xaxis.set_tick_params(which='both', length=0, labelsize=7.5)
+    ax.set_xticks(np.arange(len(feature_labels)))
+    ax.set_xticklabels(feature_labels, rotation=90);
+
+    # Plot time on x-axis (horizontal)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.matshow(np.nan_to_num(zscore(features, axis=0))[:90].T,
+               vmin=-2, vmax=2, cmap='viridis')
+    ax.set_xlabel('time')
+    ax.xaxis.set_tick_params(which='both', length=0)
+    ax.yaxis.set_tick_params(which='both', length=0, labelsize=7.5)
+    ax.set_yticks(np.arange(len(feature_labels)))
+    ax.set_yticklabels(feature_labels);
