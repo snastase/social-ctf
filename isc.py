@@ -1,17 +1,11 @@
 from os.path import join
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import zscore
 from scipy.spatial.distance import squareform
 from brainiak.isc import isc
 
-# Load helper functions for interacting with CTF dataset
+# Load helper function(s) for interacting with CTF dataset
 from ctf_dataset.load import create_wrapped_dataset
-from ctf_dataset import info
-from ctf_dataset.info import constants
-from ctf_dataset.info import events
-from ctf_dataset.load import virtual
-from ctf_dataset.load import utils as load_utils
 
 
 base_dir = '/mnt/bucket/labs/hasson/snastase/social-ctf'
