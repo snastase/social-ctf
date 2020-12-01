@@ -10,7 +10,7 @@ data_dir = join(base_dir, 'data')
 wrap_f = create_wrapped_dataset(data_dir, output_dataset_name="virtual.hdf5")
 
 map_id = 0 # 0
-matchup_id = 0 # 0-54
+matchup_id = 34 # 0-54
 repeat_id = 0 # 0-7
 player_id = 0 # 0-3
 
@@ -218,7 +218,10 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     
     # We can't slice score and flags by player ID yet
-    features, feature_labels = get_features(wrap_f)
+    features, feature_labels = get_features(wrap_f, map_id=map_id,
+                                            matchup_id=matchup_id,
+                                            repeat_id=repeat_id,
+                                            player_id=player_id)
 
     # Plot time on y-axis (vertical)
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -232,7 +235,7 @@ if __name__ == "__main__":
     ax.set_xticklabels(feature_labels, rotation=90);
 
     # Plot time on x-axis (horizontal)
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(12, 12))
     ax.matshow(np.nan_to_num(zscore(features, axis=0))[:90].T,
                vmin=-2, vmax=2, cmap='viridis')
     ax.set_xlabel('time')
