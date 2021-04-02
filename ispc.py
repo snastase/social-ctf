@@ -71,6 +71,7 @@ np.save('results/ispc_lstm_tanh_results.npy', ispc_results)
 
 ispc_results = np.load('results/ispc_lstm_tanh_results.npy')
 
+
 # Compare full results array
 coop_ids, comp_ids = [0, 5], [1, 2, 3, 4]
 
@@ -161,7 +162,6 @@ coop_ids
 reward = wrap_f['map/matchup/repeat/player/time/reward'][0, matchup_ids, :, :, :, 0]
 values = wrap_f['map/matchup/repeat/player/time/reward'][0, matchup_ids, :, :, :, 0]
 
-### ADD ISC-DEV STUFF HERE
 
 ## ISPC for comp vs. coop matchups (SA + SN)
 
@@ -171,7 +171,6 @@ from brainiak.isc import isc, isfc
 from features import get_features
 from features import get_events
 
-# (line 293 in isc-dev)
 
 # Load in existing ISPC results (in place of code chunk above)
 
