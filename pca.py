@@ -288,3 +288,78 @@ for m in np.arange(n_matchups):
 lstm_pca_reduce = np.stack(lstm_pca_reduce, axis=0)
 
 np.save(f'results/lstms_tanh-z_pca-k{k}.npy', lstm_pca_reduce)
+
+
+## Compute correlations for PC in comparison to game variable 
+
+from features import get_features
+from scipy.stats import pearsonr
+
+# Load pre-saved PCA's 
+k = 100
+lstm_pca = np.load(f'results/lstms_tanh-z_pca-k{k}.npy')
+
+
+# Exclude degenerate features from analysis 
+feature_set = ['position', 'health', 'events']
+all_features, labels = get_features(wrap_f, feature_set=feature_set, map_id=map_id,
+                                    matchup_id=matchup_ids, player_id=slice(None),
+                                    repeat_id=slice(None))
+
+features_exclude = []
+for label in labels: 
+    features = all_features[..., np.array(labels) == label]
+    n_nonzeros = np.sum(np.nonzero(features))
+    print(f'checking {label} for all nonzeros; found {n_nonzeros} nonzeros')
+    if n_nonzeros == 0:
+        features_exclude.append(label)
+        print(f'excluding {label}')
+        
+labels = [l for l in labels if l not in features_exclude]  
+        
+# Define a single variable to pull stats for (this may be redundant, review later)
+
+pca_corrs = {}
+for game_var in labels:
+    features = all_features[..., np.array(labels) == game_var]
+    # code is breaking above because new labels code that removes degenerative features does not match dimensions of 
+    feature_shape = features.shape[:-2]
+    pca_corrs[game_var] = np.full(feature_shape + (k,), np.nan)
+ 
+    for matchup_id in np.arange(n_matchups):
+        for repeat_id in np.arange(n_repeats):   
+            for player_id in np.arange(n_players): 
+                for pc_id in np.arange(k):
+                    pc_corr = pearsonr(features[matchup_id, repeat_id, player_id, :, 0],
+                                       lstm_pca[matchup_id, repeat_id, player_id,
+                                                :, pc_id])[0]
+                    pca_corrs[game_var][matchup_id, repeat_id, player_id, pc_id] = pc_corr
+  
+
+    print(f"finished pca correlations w/ {game_var}")
+
+# Save dictionary 
+np.save(f'results/lstm_pca-k{k}_feature_correlations.npy', pca_corrs)
+
+## Plot
+
+pca_corrs = np.load('results/lstm_pca-k100_feature_correlations.npy', allow_pickle=True)
+
+# Summarize PCA Corrs across players and repeats
+pca_corr_means = []
+
+for game_var in pca_corrs:
+    pca_corr_means.append(np.nanmean(pca_corrs[game_var], axis=(1, 2)))
+
+pca_corr_means = np.stack(pca_corr_means, 1)
+
+assert pca_corr_means.shape[1] == len(labels)
+
+pc_id = 2
+
+for pc_id in np.arange(1,10):
+    plt.matshow(pca_corr_means[..., pc_id], cmap='RdBu_r')
+    plt.yticks([0, 1, 2, 3], ['A','B','C','D'])
+    plt.xticks(np.arange(pca_corr_means.shape[1]), labels, rotation=90);
+    plt.title(f'PCA Feature Correlations for PC{pc_id}')
+    plt.colorbar()
