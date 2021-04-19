@@ -315,28 +315,29 @@ for label in labels:
         features_exclude.append(label)
         print(f'excluding {label}')
         
-labels = [l for l in labels if l not in features_exclude]  
+#labels = [l for l in labels if l not in features_exclude]  
         
 # Define a single variable to pull stats for (this may be redundant, review later)
 
 pca_corrs = {}
 for game_var in labels:
-    features = all_features[..., np.array(labels) == game_var]
-    # code is breaking above because new labels code that removes degenerative features does not match dimensions of 
-    feature_shape = features.shape[:-2]
-    pca_corrs[game_var] = np.full(feature_shape + (k,), np.nan)
- 
-    for matchup_id in np.arange(n_matchups):
-        for repeat_id in np.arange(n_repeats):   
-            for player_id in np.arange(n_players): 
-                for pc_id in np.arange(k):
-                    pc_corr = pearsonr(features[matchup_id, repeat_id, player_id, :, 0],
-                                       lstm_pca[matchup_id, repeat_id, player_id,
-                                                :, pc_id])[0]
-                    pca_corrs[game_var][matchup_id, repeat_id, player_id, pc_id] = pc_corr
-  
+    if game_var not in features_exclude: 
+        features = all_features[..., np.array(labels) == game_var]
+        # code is breaking above because new labels code that removes degenerative features does not match dimensions of 
+        feature_shape = features.shape[:-2]
+        pca_corrs[game_var] = np.full(feature_shape + (k,), np.nan)
 
-    print(f"finished pca correlations w/ {game_var}")
+        for matchup_id in np.arange(n_matchups):
+            for repeat_id in np.arange(n_repeats):   
+                for player_id in np.arange(n_players): 
+                    for pc_id in np.arange(k):
+                        pc_corr = pearsonr(features[matchup_id, repeat_id, player_id, :, 0],
+                                           lstm_pca[matchup_id, repeat_id, player_id,
+                                                    :, pc_id])[0]
+                        pca_corrs[game_var][matchup_id, repeat_id, player_id, pc_id] = pc_corr
+
+
+        print(f"finished pca correlations w/ {game_var}")
 
 # Save dictionary 
 np.save(f'results/lstm_pca-k{k}_feature_correlations.npy', pca_corrs)
@@ -355,7 +356,6 @@ pca_corr_means = np.stack(pca_corr_means, 1)
 
 assert pca_corr_means.shape[1] == len(labels)
 
-pc_id = 2
 
 for pc_id in np.arange(1,10):
     plt.matshow(pca_corr_means[..., pc_id], cmap='RdBu_r')

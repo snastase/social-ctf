@@ -56,21 +56,22 @@ for label in labels:
 
 ica_corrs = {}
 for game_var in labels:
-    features = all_features[..., np.array(labels) == game_var]
-    # code is breaking above because new labels code that removes degenerative features does not match dimensions of 
-    feature_shape = features.shape[:-2]
-    ica_corrs[game_var] = np.full(feature_shape + (k,), np.nan)
- 
-    for matchup_id in np.arange(n_matchups):
-        for repeat_id in np.arange(n_repeats):   
-            for player_id in np.arange(n_players): 
-                for ic_id in np.arange(k):
-                    ic_corr = pearsonr(features[matchup_id, repeat_id, player_id, :, 0], 
-                                       lstm_ica[matchup_id, repeat_id, player_id, :, ic_id])[0]
-                    ica_corrs[game_var][matchup_id, repeat_id, player_id, ic_id] = ic_corr
-  
+    if game_var not in features_exclude:
+        features = all_features[..., np.array(labels) == game_var]
+        # code is breaking above because new labels code that removes degenerative features does not match dimensions of 
+        feature_shape = features.shape[:-2]
+        ica_corrs[game_var] = np.full(feature_shape + (k,), np.nan)
 
-    print(f"finished ica correlations w/ {game_var}")
+        for matchup_id in np.arange(n_matchups):
+            for repeat_id in np.arange(n_repeats):   
+                for player_id in np.arange(n_players): 
+                    for ic_id in np.arange(k):
+                        ic_corr = pearsonr(features[matchup_id, repeat_id, player_id, :, 0], 
+                                           lstm_ica[matchup_id, repeat_id, player_id, :, ic_id])[0]
+                        ica_corrs[game_var][matchup_id, repeat_id, player_id, ic_id] = ic_corr
+
+
+        print(f"finished ica correlations w/ {game_var}")
 
 # Save dictionary 
 np.save(f'results/lstm_ica-k{k}_feature_correlations.npy', ica_corrs)
@@ -89,7 +90,6 @@ ica_corr_means = np.stack(ica_corr_means, 1)
 
 assert ica_corr_means.shape[1] == len(labels)
 
-ic_id = 2
 
 for ic_id in np.arange(1,10):
     plt.matshow(ica_corr_means[..., ic_id], cmap='RdBu_r')
