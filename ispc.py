@@ -169,8 +169,6 @@ from scipy.stats import pearsonr
 from itertools import combinations
 from brainiak.isc import isc, isfc
 from features import get_features
-from features import get_events
-
 
 # Load in existing ISPC results (in place of code chunk above)
 
@@ -190,6 +188,8 @@ for label in labels:
     if n_nonzeros == 0:
         features_exclude.append(label)
         print(f'excluding {label}')
+        
+labels = [l for l in labels if l not in features_exclude]  
         
 # Get proximities
 def get_proximity(position):
@@ -232,9 +232,6 @@ n_repeats = 8
 # Define a single variable to pull stats for (this may be redundant, review later)
 
 for game_var in labels:
-    # skips degenerate game variables 
-    if game_var in features_exclude: 
-        continue 
     features = all_features[..., np.array(labels) == game_var]
     #ispc_feature_corr[game_var] = {} # internal dict for game_var
     feature_shape = features.shape[:-2]
