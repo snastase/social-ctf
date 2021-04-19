@@ -288,3 +288,59 @@ for m in np.arange(n_matchups):
 lstm_pca_reduce = np.stack(lstm_pca_reduce, axis=0)
 
 np.save(f'results/lstms_tanh-z_pca-k{k}.npy', lstm_pca_reduce)
+
+
+# Look at some properties of the PCA-reduced LSTMs
+lstm_pca_reduce = np.load(f'results/lstms_tanh-z_pca-k{k}_ica.npy')
+
+# Look at ISC of PCs for individual games
+matchup, repeat = 0, 0
+
+n_pcs = 10
+fig, axs = plt.subplots(2, 5, figsize=(25, 8))
+for pc, ax in zip(np.arange(n_pcs), axs.ravel()):
+    corr = np.corrcoef(lstm_pca_reduce[matchup, repeat, ..., pc])
+    sns.heatmap(corr, square=True, annot=True, vmin=-1, vmax=1,
+                cmap='RdBu_r', xticklabels=False, yticklabels=False,
+                fmt='.2f', ax=ax, cbar=cbar)
+    ax.set_title(f'PC{pc + 1}')
+
+
+# Look at ISC of PCs averaged across games
+matchup = 0
+n_repeats = 8
+
+n_pcs = 10
+fig, axs = plt.subplots(2, 5, figsize=(25, 8))
+for pc, ax in zip(np.arange(n_pcs), axs.ravel()):
+    corr = np.mean([np.corrcoef(lstm_pca_reduce[matchup, r, ..., pc])
+                    for r in np.arange(n_repeats)], axis=0)
+    sns.heatmap(corr, square=True, annot=True, vmin=-1, vmax=1,
+                cmap='RdBu_r', xticklabels=False, yticklabels=False,
+                fmt='.2f', ax=ax, cbar=cbar)
+    ax.set_title(f'PC{pc + 1}')
+
+    
+# Difference in cooperative/competitive ISC across PCs
+matchup = 3
+n_repeats = 8
+n_pcs = 100
+
+isc_diffs = {'difference': [], 'PC': [], 'repeat': []}
+for pc in np.arange(n_pcs):
+    corrs = [np.corrcoef(lstm_pca_reduce[matchup, r, ..., pc])
+             for r in np.arange(n_repeats)]
+    diffs = [np.mean(c[[0, 3], [1, 2]]) - np.mean(c[0:2, 2:4])
+             for c in corrs]
+    for r, diff in enumerate(diffs):
+        isc_diffs['difference'].append(diff)
+        isc_diffs['PC'].append(pc + 1)
+        isc_diffs['repeat'].append(r)
+isc_diffs = pd.DataFrame(isc_diffs)
+    
+fig, ax = plt.subplots(figsize=(16, 4))
+sns.barplot(x='PC', y='difference', data=isc_diffs, ax=ax, color='.6')
+ax.set_ylim(-.3, 1)
+ax.set_xticks([0, 19, 39, 59, 79, 99])
+ax.set_ylabel('cooperative – competitive ISC')
+ax.set_title(f'difference in cooperative vs. competitive ISC for 100 ICs (matchup {matchup})');
