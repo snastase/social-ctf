@@ -124,7 +124,7 @@ def isps(data, vectorize_isps=True):
 
 
 # Function to compute sliding-window ISC
-def window_isc(data, width=150):
+def window_isc(data, width=150, pairwise=True):
 
     # We expect time (i.e. samples) in the first dimension
     if data.ndim == 2:
@@ -147,6 +147,27 @@ def window_isc(data, width=150):
         win_iscs = win_iscs[..., 0]
 
     return win_iscs
+
+
+# Function to compute sliding-window ISFC
+def window_isfc(data, width=150, pairwise=True, vectorize_isfcs=False):
+    
+    # We expect time (i.e. samples) in the first dimension
+    n_samples = data.shape[0]
+    n_units = data.shape[1]
+    n_pairs = data.shape[2] * (data.shape[2] - 1) // 2
+    onsets = np.arange(n_samples - width)
+    n_windows = len(onsets)
+    
+    win_isfcs = np.zeros((n_windows, n_pairs, n_units, n_units))
+    for onset in onsets:
+        win_data = data[onset:onset + width, ...]
+        win_isfcs[onset, ...] = isfc(win_data, pairwise=pairwise,
+                                     vectorize_isfcs=vectorize_isfcs)
+        if onset > 0 and onset % 500 == 0:
+            print(f"Finished computing ISFC for {onset} windows")
+        
+    return win_isfcs
 
 
 if __name__ == 'main':
