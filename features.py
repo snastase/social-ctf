@@ -6,13 +6,6 @@ from ctf_dataset.info import events as event_names
 base_dir = '/mnt/bucket/labs/hasson/snastase/social-ctf'
 data_dir = join(base_dir, 'data')
 
-# Create wrapped CTF dataset
-wrap_f = create_wrapped_dataset(data_dir, output_dataset_name="virtual.hdf5")
-
-map_id = 0 # 0
-matchup_id = 34 # 0-54
-repeat_id = 0 # 0-7
-player_id = 0 # 0-3
 
 # Convenience function to extract event array and labels
 def get_events(wrap_f, map_id=0, matchup_id=0,
@@ -212,6 +205,13 @@ def get_features(wrap_f, feature_set=None, team=None, map_id=0,
 
 if __name__ == "__main__":
 
+    # Create wrapped CTF dataset
+    wrap_f = create_wrapped_dataset(data_dir, output_dataset_name="virtual.hdf5")
+
+    map_id = 0 # 0
+    matchup_id = 0 # 0-54
+    repeat_id = slice(None) # 0-7
+    player_id = 0 # 0-3
 
     # Visualize some example feature matrix with labels
     from scipy.stats import zscore
