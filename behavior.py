@@ -107,44 +107,11 @@ for ax, action in zip(g.axes, yfs):
     ax.text(1, 0.05, peak, ha='right', transform = ax.transAxes)
 
 
-# Expand action space into binary dummy variables
-def expand_actions(actions, action_labels, stack=True):
-    
-    subactions = {}
-    for action, label in zip(actions.T, action_labels):
-        
-        # Expand look left/right into five separate actions
-        n_subactions = len(np.unique(action))
-        subactions[label] = np.zeros((actions.shape[0],
-                                      n_subactions))
-        for subaction in np.arange(n_subactions):
-            subactions[label][:, subaction][
-                action == subaction] = 1
-        
-        # Check that each subaction occurs uniquely in time
-        assert np.all(np.sum(subactions[label], axis=1) == 1)
-        
-    if stack:
-        subactions = np.concatenate([subactions[a] for a in subactions],
-                                    axis=1)
-            
-    return subactions
-
-# Plot expanded binary subactions
-subactions = expand_actions(actions[0, 0, ...], action_labels)
-plt.matshow(subactions[:150, :].T)
-plt.xlabel('time')
-plt.ylabel('subactions')
-plt.yticks([0, 10, 20], [0, 10, 20])
-plt.tick_params(axis='x', length=0)
-plt.title("subactions for 10 seconds of gameplay")
-
-
 # Extract position to look at proximity, approach, avoidance
 from itertools import combinations
 
 map_id = 0 # 0
-matchup_id = 0 # 0-54 (0, 34, 49, 54)
+matchup_id = 54 # 0-54 (0, 34, 49, 54)
 repeat_id = 0 # 0-7
 player_id = slice(None) # 0-3
 
@@ -305,3 +272,116 @@ g.axes[0][0].text(1, 0.15, f'peak = {xf[np.argmax(yfs_coop)]:.3f} Hz',
 g.axes[0][1].text(1, 0.15, f'peak = {xf[np.argmax(yfs_comp)]:.3f} Hz',
                   ha='right', transform = g.axes[0][1].transAxes)
 
+
+# Re-load actions across all repeats and players
+map_id = 0 # 0
+matchup_id = (0, 34, 49, 54) # 0-54 (0, 34, 49, 54)
+repeat_id = slice(None) # 0-7
+player_id = slice(None) # 0-3
+
+# Let's start with the simple actions
+feature_set = ['actions']
+
+actions, action_labels = get_features(wrap_f,
+                                      feature_set=feature_set,
+                                      map_id=map_id,
+                                      matchup_id=matchup_id,
+                                      repeat_id=repeat_id,
+                                      player_id=player_id)
+
+# Function for expanding 6 action channels into 20 subactions
+def expand_actions(actions, action_labels, stack=True):
+    
+    subactions = {}
+    for action, label in zip(actions.T, action_labels):
+        
+        # Expand look left/right into five separate actions
+        n_subactions = len(np.unique(action))
+        subactions[label] = np.zeros((actions.shape[0],
+                                      n_subactions))
+        for subaction in np.arange(n_subactions):
+            subactions[label][:, subaction][
+                action == subaction] = 1
+        
+        # Check that each subaction occurs uniquely in time
+        assert np.all(np.sum(subactions[label], axis=1) == 1)
+        
+    if stack:
+        subactions = np.concatenate([subactions[a] for a in subactions],
+                                    axis=1)
+            
+    return subactions
+
+# Concatenate across repeats and players
+n_repeats = 8
+n_samples = 4501
+n_players = 4
+
+actions_stack = []
+subactions = {}
+for matchup, matchup_actions in  zip(matchup_id, actions):
+    matchup_actions = np.concatenate(matchup_actions, axis=1)
+    matchup_actions = np.concatenate(matchup_actions, axis=0)
+    assert matchup_actions.shape[0] == n_repeats * n_samples * n_players
+    actions_stack.append(matchup_actions)
+    subactions[matchup] = expand_actions(matchup_actions, action_labels)
+
+actions = {m: actions_stack[i] for i, m in enumerate(matchup_id)}
+
+# Plot expanded binary subactions
+matchup = 0
+plt.matshow(subactions[matchup][:150, :].T)
+plt.xlabel('time')
+plt.ylabel('subactions')
+plt.yticks([0, 10, 20], [0, 10, 20])
+plt.tick_params(axis='x', length=0)
+plt.title("subactions for 10 seconds of gameplay")
+
+
+# Run PCA on subactions across all players and repeats
+from sklearn.decomposition import PCA
+
+n_components = 20
+
+subactions_pca = {}
+for matchup in subactions:
+    pca = PCA(n_components=n_components)
+    subactions_t = pca.fit_transform(subactions[matchup])
+    subactions_pca[matchup] = {'pca': pca,
+                               'transformed': subactions_t}
+    print(f"Finished running PCA on matchup {matchup}")
+
+# Scree plot for variance explained
+sns.set(style='white', font_scale=1.1)
+fig, axs = plt.subplots(2, 2, figsize=(10, 8),
+                        sharey=True, sharex=True)
+for ax, matchup in zip(axs.flatten(), subactions_pca):
+    ax.plot(subactions_pca[matchup]['pca'].explained_variance_ratio_)
+    ax.set_xlim(-1, 21)
+    ax.set_xticks([0, 4, 9, 14, 19])
+    ax.set_xticklabels([1, 5, 10, 15, 20])
+    ax.set_title(f'matchup {matchup}')
+sns.despine(fig=fig)
+fig.add_subplot(111, frameon=False)
+plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+plt.grid(False)
+plt.xlabel("PCA dimensions")
+plt.ylabel("proportion variance explained", labelpad=20)
+plt.suptitle("Proportion of variance explained at PCA dimensions 1–20")
+plt.tight_layout()
+
+# Plot PCA solution colored by action channels
+matchup = 49
+
+fig, axs = plt.subplots(2, 3, figsize=(10, 8),
+                        sharex=True, sharey=True)
+sns.despine(fig=fig)
+for i, (label, ax) in enumerate(zip(action_labels, axs.flatten())):
+    ax.scatter(subactions_pca[matchup]['transformed'][:4501, 0],
+               subactions_pca[matchup]['transformed'][:4501, 1],
+               c=actions[matchup][:4501, i], cmap='viridis', alpha=.7)
+    ax.set(adjustable='box', aspect='equal')
+    ax.set_title(label)
+plt.suptitle(f"One game projected onto PCs 1 and 2\n"
+             f"(matchup {matchup}; colored by action)")
+plt.tight_layout()
