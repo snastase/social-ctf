@@ -3,11 +3,7 @@ from itertools import combinations
 from scipy.stats import zscore
 from scipy.spatial.distance import squareform
 from scipy.signal import hilbert
-
-
-# Helper function for Fisher-transformed average
-def fisher_mean(correlations, axis=None):
-    return np.tanh(np.mean(np.arctanh(correlations), axis=axis))
+from brainiak.isc import isc
 
 
 # Function to compute "unwrapped" correlation
@@ -170,6 +166,58 @@ def window_isfc(data, width=150, pairwise=True, vectorize_isfcs=False):
     return win_isfcs
 
 
+# Function for computing ISCs at varying lags
+def lagged_isc(data, n_lags=150, circular=True):
+    
+    # If lag is integer, get positive and negative range around zero
+    if type(n_lags) is int:
+        lags = np.arange(-n_lags, n_lags + 1)
+
+    # Get number of pairs
+    n_players = data.shape[-1]
+        
+    # Iterate through lags to populate lagged ISCs
+    lagged_iscs = []
+    for lag in lags:
+
+        pairwise_iscs = []
+        for pair in combinations(np.arange(n_players), 2):
+            
+            lagged_player1 = data[..., pair[0]]
+            lagged_player2 = data[..., pair[1]]
+            
+            # If circular, loop excess elements to beginning
+            if circular:
+                if lag != 0:
+                    lagged_player1 = np.concatenate((lagged_player1[-lag:],
+                                                     lagged_player1[:-lag]))
+                    
+            # If not circular, trim non-overlapping elements
+            # Shifts y with respect to x
+            else:
+                print('second')
+                if lag < 0:
+                    lagged_player1 = lagged_player1[:lag]
+                    lagged_player2 = lagged_player2[-lag:]
+                elif lag > 0:
+                    lagged_player1 = lagged_player1[lag:]
+                    lagged_player2 = lagged_player2[:-lag]
+
+            pairwise_isc = isc(np.stack((lagged_player1, lagged_player2),
+                                        axis=-1))
+            pairwise_iscs.append(pairwise_isc)
+            
+        pairwise_iscs = np.array(pairwise_iscs)
+        lagged_iscs.append(pairwise_iscs)
+    
+    lagged_iscs = np.stack(lagged_iscs, axis=-1)
+
+    if lagged_iscs.shape[1] == 1:
+        lagged_iscs = np.squeeze(lagged_iscs)
+    
+    return lagged_iscs, lags
+
+
 if __name__ == 'main':
     
     # Load helper function(s) for interacting with CTF dataset
@@ -255,3 +303,23 @@ if __name__ == 'main':
             print(f"Computed ISPS for matchup {matchup} (repeat {repeat})")
 
     np.save(f'results/isps_lstm_tanh-z_pca-k{k}.npy', isps_results)
+
+    
+    # Load in confound-regression PCs and run ISCF
+    reg = 'com' # 'pre', 'hud', 'act', or 'com'
+    lstms_pca_reg = np.load(f'results/lstms_tanh-z_pca-k{k}_reg-{reg}.npy')
+    
+    # Loop through matchups and repeats and compute ISCF
+    for matchup in np.arange(n_matchups):
+        for repeat in np.arange(n_repeats):
+
+            lstms = lstms_pca_reg[matchup, repeat, ...]
+            lstms = np.rollaxis(lstms, 0, 3)
+
+            # Compute ISCs between each pair for 4 agents
+            iscfs = iscf(lstms, vectorize_iscf=False)
+
+            print(f"Computed ISCF for matchup {matchup} (repeat {repeat})")
+    
+            np.save(f'results/iscf_lstm_tanh-z_pca-k{k}_reg-{reg}'
+                    f'_m{matchup}_r{repeat}.npy', iscfs)
