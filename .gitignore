@@ -8,3 +8,5 @@ googlesource-authentication.sh
 results/
 __pycache__/
 googlesource-authentication*
+figures/
+logs/
