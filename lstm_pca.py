@@ -6,6 +6,8 @@ from scipy.stats import zscore
 from sklearn.decomposition import PCA
 import pandas as pd
 from itertools import combinations
+from statistics import bootstrap_test, fisher_mean
+from statsmodels.stats.multitest import multipletests
 
 # Load helper function(s) for interacting with CTF dataset
 from ctf_dataset.load import create_wrapped_dataset
@@ -263,6 +265,43 @@ for m in np.arange(n_matchups):
     print('\n')
 
 
+# Plot scree plot of variance accounted
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+matchup = 0
+pca_k = 100
+evr = lstm_stack_pca[matchup]['pca'].explained_variance_ratio_
+evr_cum = np.cumsum(evr)
+dimensions = np.arange(1, 513)
+
+percents = [.9, .95, .99]
+percents_vaf = {}
+for i, perc in enumerate(percents):
+    k = np.sum(np.cumsum(
+        lstm_stack_pca[m][
+            'pca'].explained_variance_ratio_) <= perc) + 1     
+    percents_vaf[k] = perc
+
+fig, ax = plt.subplots(figsize=(5.5, 4.5))
+ax.scatter(dimensions, evr, color='.5')
+ax.scatter(dimensions[:pca_k], evr[:pca_k], color='tab:red')
+ax.set_xlabel('dimensions')
+ax.set_ylabel('proportion of\nvariance explained')
+for k, perc in percents_vaf.items():
+    ax.axvline(k, 0, .35, color='.5', zorder=-1)
+    ax.annotate(f'{perc:.0%}', xy=(k + 10, .37), ha='center',
+                xycoords=('data', 'axes fraction'))
+axins = inset_axes(ax, width=1.2, height=1)
+axins.scatter(dimensions, evr_cum, color='.5')
+axins.scatter(dimensions[:pca_k], evr_cum[:pca_k], color='tab:red')
+axins.xaxis.set_ticks([])
+axins.yaxis.set_ticks([])
+axins.set_xlabel('dimensions', size=12)
+axins.set_ylabel('cumulative\nvariance', size=12)
+plt.savefig(f'figures/scree_tanh-z_pca-k{pca_k}_m{matchup}.png', dpi=300,
+            bbox_inches='tight')
+    
+    
 # Create reduced-dimension version of data (e.g. k = 100)
 k = 100
 
@@ -294,6 +333,13 @@ lstm_pca_reduce = np.stack(lstm_pca_reduce, axis=0)
 
 np.save(f'results/lstms_tanh-z_pca-k{k}.npy', lstm_pca_reduce)
 
+
+# Plot some example PC time series
+k = 100
+lstms_pca = np.load(f'results/lstms_tanh-z_pca-k{k}.npy')
+
+
+### Get rid of everything south of heres
 
 # Compute correlations for PC in comparison to game variable 
 from features import get_features
@@ -371,7 +417,8 @@ for pc_id in np.arange(1,10):
 
 # Look at some properties of the PCA-reduced LSTMs
 k = 100
-lstm_pca_reduce = np.load(f'results/lstms_tanh-z_pca-k{k}.npy')
+#lstm_pca_reduce = np.load(f'results/lstms_tanh-z_pca-k{k}.npy')
+lstm_pca_reduce = np.load(f'results/lstms_tanh-z_pca-k{k}_reg-pre.npy')
 
 # Look at ISC of PCs for individual games
 matchup, repeat = 0, 0
@@ -387,18 +434,23 @@ for pc, ax in zip(np.arange(n_pcs), axs.ravel()):
 
 
 # Look at ISC of PCs averaged across games
+pca_k = 100
 matchup = 0
 n_repeats = 8
 
 n_pcs = 10
 fig, axs = plt.subplots(2, 5, figsize=(25, 8))
 for pc, ax in zip(np.arange(n_pcs), axs.ravel()):
-    corr = np.mean([np.corrcoef(lstm_pca_reduce[matchup, r, ..., pc])
-                    for r in np.arange(n_repeats)], axis=0)
+    corr = fisher_mean([np.corrcoef(lstm_pca_reduce[matchup, r, ..., pc])
+                        for r in np.arange(n_repeats)], axis=0)
     sns.heatmap(corr, square=True, annot=True, vmin=-1, vmax=1,
                 cmap='RdBu_r', xticklabels=False, yticklabels=False,
                 fmt='.2f', ax=ax)
     ax.set_title(f'PC{pc + 1}')
+#plt.savefig(f'figures/isc_coop-comp_tanh-z_pca-k{pca_k}_m{matchup}.png',
+#            dpi=300, bbox_inches='tight')
+plt.savefig(f'figures/isc_coop-comp_tanh-z_pca-k{pca_k}_reg-pre_m{matchup}.png',
+            dpi=300, bbox_inches='tight')
     
 
 # Specific subset of PCs averaged across games
@@ -421,24 +473,54 @@ matchup = 0
 n_repeats = 8
 n_pcs = 100
 
-isc_diffs = {'difference': [], 'PC': [], 'repeat': []}
+isc_diffs = []
+isc_diffs_df = {'difference': [], 'PC': [], 'repeat': []}
 for pc in np.arange(n_pcs):
     corrs = [np.corrcoef(lstm_pca_reduce[matchup, r, ..., pc])
              for r in np.arange(n_repeats)]
     diffs = [np.mean(c[[0, 3], [1, 2]]) - np.mean(c[0:2, 2:4])
              for c in corrs]
+    isc_pc_diffs = []
     for r, diff in enumerate(diffs):
-        isc_diffs['difference'].append(diff)
-        isc_diffs['PC'].append(pc + 1)
-        isc_diffs['repeat'].append(r)
-isc_diffs = pd.DataFrame(isc_diffs)
-    
+        isc_diffs_df['difference'].append(diff)
+        isc_diffs_df['PC'].append(pc + 1)
+        isc_diffs_df['repeat'].append(r)
+        isc_pc_diffs.append(diff)
+    isc_diffs.append(isc_pc_diffs)
+isc_diffs_df = pd.DataFrame(isc_diffs_df)
+isc_diffs = np.array(isc_diffs).T
+
+observed, ci, p, distribution = bootstrap_test(isc_diffs,
+                                               bootstrap_axis=0,
+                                               n_bootstraps=1000,
+                                               estimator=fisher_mean,
+                                               ci_percentile=95,
+                                               side='two-sided')
+
+_, fdr_p, _, _ = multipletests(p, method='fdr_bh')
+
+sig_pos = ((fdr_p < .05) & (observed > 0)).nonzero()[0]
+sig_neg = ((fdr_p < .05) & (observed < 0)).nonzero()[0]
+
 fig, ax = plt.subplots(figsize=(16, 4))
-sns.barplot(x='PC', y='difference', data=isc_diffs, ax=ax, color='.6')
-ax.set_ylim(-.3, 1)
+sns.barplot(x='PC', y='difference', data=isc_diffs_df, ax=ax, color='.6',
+            estimator=fisher_mean)
+# ax.set_ylim(-.375, .325) # for matchup = 3 (sig y = -.01)
+ax.set_ylim(-.3, 1) # for matchup = 0
 ax.set_xticks([0, 19, 39, 59, 79, 99])
+for sig_pc in sig_pos:
+    ax.annotate('.', (sig_pc, -.02), color='tab:red', size=40,
+                xycoords=('data', 'axes fraction'),
+                ha='center', va='bottom')
+for sig_pc in sig_neg:
+    ax.annotate('.', (sig_pc, -.02), color='tab:blue', size=40,
+                xycoords=('data', 'axes fraction'),
+                ha='center', va='bottom')
 ax.set_ylabel('cooperative – competitive ISC')
-ax.set_title(f'difference in cooperative vs. competitive ISC for 100 ICs (matchup {matchup})');
+ax.set_title(f'difference in cooperative vs. competitive ISC for 100 PCs');
+plt.savefig(f'figures/isc_diff-bars_tanh-z_pca-k{pca_k}_m{matchup}.png',
+            dpi=300, bbox_inches='tight')
+
 
 
 # Examine time-resolved intersubject synchrony of PCs
@@ -548,221 +630,5 @@ m.set_title(f'PC{pc + 1} coupling correlation')
 plt.savefig(f'PC{pc + 1}_coop_corrs.png', dpi=300, bbox_inches='tight')
 
 
-# Function to compute "unwrapped" correlation
-def cofluctuation(a, b):
-    return zscore(a) * zscore(b)
-
-# Function to compute co-fluctuation across players
-def iscf(data):
-
-    iscfs = []
-    for pair in combinations(np.arange(data.shape[-1]), 2):
-        cf = cofluctuation(data[:, pair[0]],
-                           data[:, pair[1]])
-        iscfs.append(cf)
-
-    return np.array(iscfs)
 
 
-# Function to compute sliding-window ISC
-def window_isc(data, width=150):
-
-    # We expect time (i.e. samples) in the first dimension
-    if data.ndim == 2:
-        data = data[:, np.newaxis, :]
-
-    n_samples = data.shape[0]
-    n_units = data.shape[1]
-    n_pairs = data.shape[2] * (data.shape[2] - 1) // 2
-    onsets = np.arange(n_samples - width)
-    n_windows = len(onsets)
-
-    win_iscs = np.zeros((n_windows, n_pairs, n_units))
-    for onset in onsets:
-        win_data = data[onset:onset + width, ...]
-        win_iscs[onset, ...] = isc(win_data, pairwise=True)
-        if onset > 0 and onset % 500 == 0:
-                print(f"Finished computing ISC for {onset} windows")
-
-    if n_units == 1:
-        win_iscs = win_iscs[..., 0]
-
-    return win_iscs
-
-
-# Function to resample windows to time points
-def resample_windows(windows, width, n_samples=4501, collapse=np.nanmax):
-    """Resample windows 
-    
-    Resamples window values onto time points according to a given collapsing
-    function (e.g nanmax, nanmean, nanmedian). Consider using np.nanmax for
-    binary window values, np.nanmedian for integer labels, np.nanmean for
-    continuous values. 
-    
-    Parameters
-    ----------
-    windows : np.array 
-    width : int
-    n_samples : int, default: 4501
-    collapse : callable, default: np.nanmax
-    
-    Returns
-    -------
-    times : np.array
-    
-    """
-    
-    # Check that there are less windows than samples 
-    assert len(windows) < n_samples
-    
-    # Stack windows on timepoint grid 
-    times = []
-    for onset, window in enumerate(windows):
-        time = np.full(n_samples, np.nan)
-        time[onset:onset+width] = window 
-        times.append(time)
-    
-    # Collapse window values onto timepoint grid 
-    times = collapse(times, axis=0)
-    
-    return times 
-
-
-# Function to pull a subset of video frames based on time IDs
-def time_series_animation(wrap_f, map_id, matchup_id, repeat_id,
-                          time_series, label=None, view='top',
-                          save_file=None):
-
-    assert view in ['pov', 'top']
-    assert time_series.shape[-1] == 4501
-    
-    if wrap_f['map/matchup/repeat/player/color_id'][
-        map_id, matchup_id, repeat_id, 0][0] == 0:
-        team_colors = ['darkred', 'darkblue']
-    elif wrap_f['map/matchup/repeat/player/color_id'][
-        map_id, matchup_id, repeat_id, 0][0] == 1:
-        team_colors = ['darkblue', 'darkred']
-        
-    if view == 'pov':
-        # This works for range() but not np.arange()... no idea why
-        frames = np.stack([wrap_f['map/matchup/repeat/player/time/pov'][
-            map_id, matchup_id, repeat_id, p, :]
-                           for p in range(4)],
-                          axis=0)
-
-    elif view == 'top':
-        frames = wrap_f["map/matchup/repeat/time/top"][
-            map_id, matchup_id, repeat_id, :][np.newaxis, ...]
-
-    fig, axs = plt.subplots(3, 1, figsize=(8, 10.3),
-                            gridspec_kw={'height_ratios': [9, 1, 1]})
-
-    frames_anim = []
-    for f in np.arange(frames.shape[1]):
-        if f == 0:
-            im = axs[0].imshow(frames[0, f])
-            ts0, = axs[1].plot(time_series[0], c=team_colors[0])
-            ts1, = axs[2].plot(time_series[1], c=team_colors[1])
-            axs[0].axis('off')
-            axs[1].axis('off')
-            axs[2].axis('off')
-        
-        im = axs[0].imshow(frames[0, f])
-        vl0 = axs[1].axvline(f, 0, 1, c='.5', alpha=.7)
-        vl1 = axs[2].axvline(f, 0, 1, c='.5', alpha=.7)
-
-        frames_anim.append([im, ts0, ts1, vl0, vl1])
-
-    anim = ArtistAnimation(fig, frames_anim, interval=67, blit=True)
-
-    if save_file:
-        anim.save(save_file)
-
-    return anim
-
-
-from matplotlib.animation import ArtistAnimation, FuncAnimation, writers
-from IPython.display import HTML, Video
-from matplotlib import rcParams
-
-map_id, matchup_id, repeat_id = 0, 0, 0
-time_series = lstm_pc_isps[[0, 5]]
-anim = time_series_animation(wrap_f, map_id, matchup_id, repeat_id,
-                             time_series, label='co-fluctuation')
-
-anim.save('results/time_series_animation_isps.mp4')
-Video('results/time_series_animation_isps.mp4')
-
-
-# Function to pull a subset of video frames based on time IDs
-def time_series_animation(wrap_f, map_id, matchup_id, repeat_id,
-                          time_series, label=None,
-                          save_file=None):
-
-    assert time_series.shape[-1] == 4501
-    
-    if wrap_f['map/matchup/repeat/player/color_id'][
-        map_id, matchup_id, repeat_id, 0][0] == 0:
-        team_colors = ['darkred', 'darkblue']
-    elif wrap_f['map/matchup/repeat/player/color_id'][
-        map_id, matchup_id, repeat_id, 0][0] == 1:
-        team_colors = ['darkblue', 'darkred']
-
-    frames = wrap_f["map/matchup/repeat/time/top"][
-        map_id, matchup_id, repeat_id, :]
-
-    rcParams['savefig.facecolor'] = 'white'
-    fig = plt.figure(constrained_layout=False, figsize=(8, 8), dpi=90)
-    gs0 = fig.add_gridspec(nrows=1, ncols=1, top=1, bottom=.1,
-                           left=.12, right=.88)
-    ax0 = fig.add_subplot(gs0[0])
-    im = ax0.imshow(frames[0])
-    ax0.axis('off')
-    gs1 = fig.add_gridspec(nrows=4, top=.15, bottom=0,
-                           height_ratios=[1, .2, 1, .2])
-    ax1 = fig.add_subplot(gs1[0])
-    ax1.set_xlim(0, len(time_series[0]))
-    ax1.plot(time_series[0], c=team_colors[0])
-    ax1.axis('off')
-    ax2 = fig.add_subplot(gs1[1])
-    ax2.set_xlim(0, len(time_series[0]))
-    ax2.set_ylim(0, 1)
-    t0, = ax2.plot([0], [.65], marker='^', color='.2')
-    ax2.axis('off')
-    ax3 = fig.add_subplot(gs1[2])
-    ax3.set_xlim(0, len(time_series[1]))
-    ax3.plot(time_series[1], c=team_colors[1])
-    ax3.axis('off')
-    ax4 = fig.add_subplot(gs1[3])
-    ax4.set_xlim(0, len(time_series[1]))
-    ax4.set_ylim(0, 1)
-    t1, = ax4.plot([0], [.65], marker='^', color='.2')
-    ax4.axis('off')
-
-    def update(frame):
-        im.set_data(frames[frame])
-        t0.set_xdata(frame)
-        t1.set_xdata(frame)
-        return im, t0, t1
-
-    anim = FuncAnimation(fig, update, frames=np.arange(4501),
-                         interval=67, blit=True)
-
-    if save_file:
-        anim.save(save_file)
-
-    return anim
-
-map_id, matchup_id, repeat_id = 0, 54, 1
-following = get_following(wrap_f, map_id=map_id, matchup_id=matchup_id,
-                          repeat_id=repeat_id)
-time_series = following
-anim = time_series_animation(wrap_f, map_id, matchup_id, repeat_id,
-                             time_series, label='following')
-
-#FFMpegWriter = writers['ffmpeg']
-#writer = FFMpegWriter(fps=15, bitrate=1000)
-anim.save(f'results/time_series_animation_following_m{matchup_id}_'
-          f'r{repeat_id}.mp4', dpi=90)
-Video(f'results/time_series_animation_following_m{matchup_id}_'
-      f'r{repeat_id}.mp4')
