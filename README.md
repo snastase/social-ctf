@@ -1,2 +1,2 @@
 # social-ctf
-Emergent social dynamics in population-based reinforcement learning
+Neural coupling and cooperative behavior in an artificial gameplay ecosystem
