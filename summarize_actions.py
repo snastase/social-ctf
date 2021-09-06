@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from ctf_dataset.load import create_wrapped_dataset
-from features import get_features
+from extract_features import get_features
 
 base_dir = '/mnt/bucket/labs/hasson/snastase/social-ctf'
 data_dir = join(base_dir, 'data')
