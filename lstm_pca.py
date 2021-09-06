@@ -6,7 +6,7 @@ from scipy.stats import zscore
 from sklearn.decomposition import PCA
 import pandas as pd
 from itertools import combinations
-from statistics import bootstrap_test, fisher_mean
+from statistical_tests import bootstrap_test, fisher_mean
 from statsmodels.stats.multitest import multipletests
 
 # Load helper function(s) for interacting with CTF dataset
