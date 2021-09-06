@@ -7,3 +7,4 @@ googlesource-authentication.sh
 .ipynb_checkpoints
 results/
 __pycache__/
+googlesource-authentication*
