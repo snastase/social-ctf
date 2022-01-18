@@ -10,3 +10,5 @@ __pycache__/
 googlesource-authentication*
 figures/
 logs/
+code_v0/
+data_v1/
