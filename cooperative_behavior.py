@@ -954,3 +954,102 @@ Video(f'figures/time_series_animation_spawncamping_min-br_m{matchup_id}_' f'r{re
 ### It appears that what we're categorizing as 'spawncamping' might actually be being 'trapped' at opponent's plate after flag capture but before being killed. A kill follows almost every instance of 'spawncamping'
 
 
+# Plot "assist" behavior
+map_id, matchup_id, repeat_id = 0, 0, 0
+red_flag_position = wrap_f['map/matchup/repeat/time/red_flag_position'][
+    map_id, matchup_id, repeat_id, ...].astype(np.float32)
+blue_flag_position = wrap_f['map/matchup/repeat/time/blue_flag_position'][
+    map_id, matchup_id, repeat_id, ...].astype(np.float32)
+
+red_flag_status = wrap_f['map/matchup/repeat/time/red_flag_status'][
+    map_id, matchup_id, repeat_id, ...].astype(np.float32).squeeze()
+blue_flag_status = wrap_f['map/matchup/repeat/time/blue_flag_status'][
+    map_id, matchup_id, repeat_id, ...].astype(np.float32).squeeze()
+
+red_flag_carried = red_flag_status.copy()
+red_flag_carried[red_flag_status == 2.] = np.nan
+blue_flag_carried = blue_flag_status.copy()
+blue_flag_carried[blue_flag_status == 2.] = np.nan
+
+red_base_position = wrap_f['map/red_base_position'][map_id]
+blue_base_position = wrap_f['map/blue_base_position'][map_id]
+
+red_retrieve_stray = np.where(np.diff(red_flag_status, append=0) == -2)[0]
+blue_retrieve_stray = np.where(np.diff(blue_flag_status, append=0) == -2)[0]
+
+red_own_flag_distance = wrap_f['map/matchup/repeat/player/time/'
+                               'player_from_own_flag_xy_distance'][
+    map_id, matchup_id, repeat_id][..., slice(0, 2), :, :].squeeze()
+blue_own_flag_distance = wrap_f['map/matchup/repeat/player/time/'
+                                'player_from_own_flag_xy_distance'][
+    map_id, matchup_id, repeat_id][..., slice(2, 4), :, :].squeeze()
+
+red_retrievals = [[], []]
+for retrieval in red_retrieve_stray:
+    red_retrievals[np.argmin(red_own_flag_distance[:, retrieval],
+                             axis=0)].append(retrieval)
+    
+blue_retrievals = [[], []]
+for retrieval in blue_retrieve_stray:
+    blue_retrievals[np.argmin(blue_own_flag_distance[:, retrieval],
+                             axis=0)].append(retrieval)
+
+red_flag_dist = np.sqrt(np.sum(np.square(red_flag_position[..., :2] -
+                                    blue_base_position[..., :2]), axis=1))
+blue_flag_dist = np.sqrt(np.sum(np.square(blue_flag_position[..., :2] -
+                                     red_base_position[..., :2]), axis=1))
+
+has_flags = has_flag(wrap_f, map_id=map_id,
+                     matchup_id=matchup_id,
+                     repeat_id=0,
+                     player_id=slice(None)).squeeze()
+
+assists = assist(wrap_f, map_id=map_id,
+                 matchup_id=matchup_id,
+                 repeat_id=repeat_id,
+                 player_id=slice(None)).squeeze()
+
+
+
+fig, axs = plt.subplots(10, 1, figsize=(12, 10), sharex=True)
+axs[0].plot(red_flag_carried, c='red', lw=.8)
+axs[0].vlines(np.where(red_flag_status == 2)[0], ymin=.75, ymax=1.25, color='.8', lw=.8)
+axs[0].vlines(red_retrievals[0], ymin=.75, ymax=1.25,
+              color='coral', lw=1.5)
+axs[0].vlines(red_retrievals[1], ymin=.75, ymax=1.25,
+              color='red', lw=1.5)
+axs[0].set_ylabel('red flag status', rotation=0, ha='right', va='center')
+axs[1].plot(red_own_flag_distance[0], c='coral', lw=.8)
+axs[1].plot(red_own_flag_distance[1], c='red', lw=.8)
+axs[1].set_ylabel('red player distance\nfrom own flag', rotation=0,
+                  ha='right', va='center')
+axs[2].plot(red_flag_dist, c='red', lw=.8)
+axs[2].set_ylabel('red flag distance\nfrom blue base',
+                  rotation=0, ha='right', va='center')
+axs[3].plot(has_flag[0], c='coral', lw=.8)
+axs[3].plot(has_flag[1] + 1.5, c='red', lw=.8)
+axs[3].set_ylabel('red has blue flag', rotation=0, ha='right', va='center')
+axs[4].plot(assists[0], c='coral', lw=.8)
+axs[4].plot(assists[1], c='red', lw=.8)
+axs[5].plot(blue_flag_carried, c='blue', lw=.8)
+axs[5].vlines(np.where(blue_flag_status == 2)[0], ymin=.75, ymax=1.25, color='.8', lw=.8)
+axs[5].vlines(blue_retrievals[0], ymin=.75, ymax=1.25,
+              color='lightseagreen', lw=1.5)
+axs[5].vlines(blue_retrievals[1], ymin=.75, ymax=1.25,
+              color='blue', lw=1.5)
+axs[5].set_ylabel('blue flag status', rotation=0, ha='right', va='center')
+axs[6].plot(blue_own_flag_distance[0], c='lightseagreen', lw=.8)
+axs[6].plot(blue_own_flag_distance[1], c='blue', lw=.8)
+axs[6].set_ylabel('blue player distance\nfrom own flag', rotation=0,
+                  ha='right', va='center')
+axs[7].plot(blue_flag_dist, c='blue', lw=.8)
+axs[7].set_ylabel('blue flag distance\nfrom red base',
+                  rotation=0, ha='right', va='center')
+axs[8].plot(has_flag[2], c='lightseagreen', lw=.8)
+axs[8].plot(has_flag[3] + 1.5, c='blue', lw=.8)
+axs[8].set_ylabel('blue has red flag', rotation=0, ha='right', va='center')
+axs[9].plot(assists[2], c='lightseagreen', lw=.8)
+axs[9].plot(assists[3], c='blue', lw=.8)
+plt.xlim(0, 4500)
+for ax in axs:
+    ax.set_yticks([])
