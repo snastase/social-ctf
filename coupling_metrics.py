@@ -4,6 +4,7 @@ from scipy.stats import zscore
 from scipy.spatial.distance import squareform
 from scipy.signal import hilbert
 from brainiak.isc import isc
+from sklearn.metrics import mutual_info_score
 
 
 # Function to compute "unwrapped" correlation
@@ -216,6 +217,15 @@ def lagged_isc(data, n_lags=150, circular=True):
         lagged_iscs = np.squeeze(lagged_iscs)
     
     return lagged_iscs, lags
+
+
+# Function for computing mutual information on (binned) continuous variables
+def mutual_info_binned(x, y, bins=None):
+    if not bins:
+        bins = np.floor(np.sqrt(4501 / 5))
+    c_xy = np.histogram2d(x, y, bins)[0]
+    mi = mutual_info_score(None, None, contingency=c_xy)
+    return mi
 
 
 if __name__ == 'main':
