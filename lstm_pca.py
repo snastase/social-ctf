@@ -126,7 +126,7 @@ for map_id in np.arange(n_maps):
 # Plot scree plot of variance accounted
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-pca_k = 109
+pca_k = 142
 vaf_cum = np.cumsum(vaf)
 dimensions = np.arange(1, 513)
 
@@ -163,26 +163,26 @@ matchup_id = 0
 map_id = 0
 repeat_id = 0
 
-pc = 9
-lstms_pc = np.load(f'results/lstms-pca_matchup-{matchup_id}_'
-                   f'map-{map_id}_repeat-{repeat_id}.npy')[..., pc]
+for pc_id in np.arange(10):
+    lstms_pc = np.load(f'results/lstms-pca_matchup-{matchup_id}_'
+                       f'map-{map_id}_repeat-{repeat_id}.npy')[..., pc_id]
 
-fig, axs = plt.subplots(2, 1, figsize=(12, 3))
-axs[0].plot(lstms_pc[0], c='darkred', alpha=.7)
-axs[0].plot(lstms_pc[1], c='coral', alpha=.7)
-axs[0].set(xticks=[], ylabel='activation', xlim=(0, 4500))
-axs[0].set_title(f'PC{pc + 1} (map {map_id}, repeat {repeat_id})')
-axs[0].annotate(f'ISC: {pearsonr(lstms_pc[0], lstms_pc[1])[0]:.3f}', (.99, 1),
-                ha='right', va='bottom', xycoords='axes fraction')
-axs[1].plot(lstms_pc[2], c='darkblue', alpha=.7)
-axs[1].plot(lstms_pc[3], c='lightseagreen', alpha=.7)
-axs[1].set(xticks=[], ylabel='activation', xlim=(0, 4500))
-axs[1].annotate(f'ISC: {pearsonr(lstms_pc[2], lstms_pc[3])[0]:.3f}', (.99, 1),
-                ha='right', va='bottom', xycoords='axes fraction')
-sns.despine()
-plt.savefig((f'figures/pca-ts_pc-{pc + 1}_matchup-{matchup_id}_'
-             f'map-{map_id}_repeat-{repeat_id}.png'),
-            dpi=300, bbox_inches='tight')
+    fig, axs = plt.subplots(2, 1, figsize=(12, 3))
+    axs[0].plot(lstms_pc[0], c='darkred', alpha=.7)
+    axs[0].plot(lstms_pc[1], c='coral', alpha=.7)
+    axs[0].set(xticks=[], ylabel='activation', xlim=(0, 4500))
+    axs[0].set_title(f'PC{pc_id + 1} (map {map_id}, repeat {repeat_id})')
+    axs[0].annotate(f'ISC: {pearsonr(lstms_pc[0], lstms_pc[1])[0]:.3f}', (.99, 1),
+                    ha='right', va='bottom', xycoords='axes fraction')
+    axs[1].plot(lstms_pc[2], c='darkblue', alpha=.7)
+    axs[1].plot(lstms_pc[3], c='lightseagreen', alpha=.7)
+    axs[1].set(xticks=[], ylabel='activation', xlim=(0, 4500))
+    axs[1].annotate(f'ISC: {pearsonr(lstms_pc[2], lstms_pc[3])[0]:.3f}', (.99, 1),
+                    ha='right', va='bottom', xycoords='axes fraction')
+    sns.despine()
+    plt.savefig((f'figures/pca-ts_pc-{pc_id + 1}_matchup-{matchup_id}_'
+                 f'map-{map_id}_repeat-{repeat_id}.png'),
+                dpi=300, bbox_inches='tight')
 
 
 # Horizontally stack cooperative pairs of players and compute joint PCA
