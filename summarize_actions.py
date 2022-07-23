@@ -384,3 +384,42 @@ g.fig.subplots_adjust(top=0.9)
 g.fig.suptitle(f'matchup {matchup_id}');
 plt.savefig(f'figures/actions_histogram_matchup-{matchup_id}.png', dpi=300,
             bbox_inches='tight')
+
+
+# Save out game scores for convenient use elsewhere (e.g. compare_spis.py)
+matchup_id = 0
+
+scores, wins = [], []
+for map_id in np.arange(n_maps):
+
+    map_scores, map_wins = [], []
+    for repeat_id in np.arange(n_repeats):
+        
+        colors = wrap_f['map/matchup/repeat/player/color_id'][
+            map_id, matchup_id, repeat_id, :, 0]
+        red_score = wrap_f['map/matchup/repeat/red_team_score'][
+            map_id, matchup_id, repeat_id, 0]
+        blue_score = wrap_f['map/matchup/repeat/blue_team_score'][
+            map_id, matchup_id, repeat_id, 0]
+        
+        if colors[0] == 0:
+            score = [red_score, blue_score]
+        else:
+            score = [blue_score, red_score]
+
+        if score[0] > score[1]:
+            win = [1, 0]
+        elif score[0] < score[1]:
+            win = [0, 1]
+        elif score[0] == score[1]:
+            win = [0, 0]
+
+        map_scores.append(score)
+        map_wins.append(win)
+                
+    scores.append(map_scores)
+    wins.append(map_wins)
+
+# Repeat 0 corresponds to alphabetical AH_BR_0 filename
+np.save(f'results/scores_matchup-{matchup_id}.npy', scores)
+np.save(f'results/wins_matchup-{matchup_id}.npy', wins)
