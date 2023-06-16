@@ -39,7 +39,7 @@ if __name__ == 'main':
     n_samples = 4501
 
     matchup_id = 0 # 0-54 or 0-3
-    
+
 
     # Loop through maps and regress pre-LSTM confounds out of PCs
     for map_id in np.arange(n_maps):
@@ -113,7 +113,7 @@ if __name__ == 'main':
             lstms_pca = np.load(f'results/lstms-pca_matchup-{matchup_id}'
                                 f'_map-{map_id}_repeat-{repeat_id}.npy')
 
-            # Regress behavioral output (i.e. actions) out of PCs
+            # Extract behavioral output (i.e. actions) for relevant matchups
             actions = wrap_f[f'map/matchup/repeat/player/time/action'][
                 map_id, matchup_id, repeat_id, ...].astype(np.float32)
             print(f"Loaded actions for map {map_id} repeat {repeat_id}")
@@ -172,4 +172,80 @@ if __name__ == 'main':
                   f"map {map_id} repeat {repeat_id}")
             
             np.save(f'results/lstms-pca_reg-com_matchup-{matchup_id}'
+                    f'_map-{map_id}_repeat-{repeat_id}.npy', lstms_res)
+
+
+    # Loop through maps and regress reward confounds out of PCs
+    for map_id in np.arange(n_maps):
+        for repeat_id in np.arange(n_repeats):
+            
+            # Load pre-saved PCA-reduced data            
+            lstms_pca = np.load(f'results/lstms-pca_matchup-{matchup_id}'
+                                f'_map-{map_id}_repeat-{repeat_id}.npy')
+
+            # Extract rewards for relevant matchups
+            rewards = wrap_f[f'map/matchup/repeat/player/time/reward'][
+                map_id, matchup_id, repeat_id, ...].astype(np.float32)
+            print(f"Loaded reward for map {map_id} repeat {repeat_id}")
+            
+            # Loop through players and perform confound regression
+            lstms_res = np.full(lstms_pca.shape, np.nan)
+            for player_id in np.arange(n_players):
+
+                lstms = lstms_pca[player_id, ...]
+                confounds = rewards[player_id, ...]
+
+                residuals = confound_regression(confounds, lstms)
+                lstms_res[player_id] = residuals
+
+            print("Finished confound regression for "
+                  f"map {map_id} repeat {repeat_id}")
+
+            np.save(f'results/lstms-pca_reg-rew_matchup-{matchup_id}'
+                    f'_map-{map_id}_repeat-{repeat_id}.npy', lstms_res)
+
+
+    # Loop through maps and regress all input/output/reward confounds out of PCs
+    for map_id in np.arange(n_maps):
+        for repeat_id in np.arange(n_repeats):
+
+            # Load pre-saved PCA-reduced data            
+            lstms_pca = np.load(f'results/lstms-pca_matchup-{matchup_id}'
+                                f'_map-{map_id}_repeat-{repeat_id}.npy')
+            
+            # Extract pre-LSTMs for relevant matchups
+            prelstms = wrap_f[f'map/matchup/repeat/player/time/pre_lstm'][
+                map_id, matchup_id, repeat_id, ...].astype(np.float32)
+            
+            # Apply log(x + 1) to pre-LSTMs
+            prelstms = np.log1p(prelstms)
+            
+            # Extract behavioral output (i.e. actions) for relevant matchups
+            actions = wrap_f[f'map/matchup/repeat/player/time/action'][
+                map_id, matchup_id, repeat_id, ...].astype(np.float32)
+            
+            # Extract rewards for relevant matchups
+            rewards = wrap_f[f'map/matchup/repeat/player/time/reward'][
+                map_id, matchup_id, repeat_id, ...].astype(np.float32)
+            print(f"Loaded reward for map {map_id} repeat {repeat_id}")
+
+            # Combine pre-LSTMs, actions, rewards into single confound matrix
+            combined = np.concatenate((prelstms, actions, rewards), axis=-1)
+            print(f"Loaded pre-LSTMs and actions "
+                  f"for map {map_id} repeat {repeat_id}")
+            
+            # Loop through players and perform confound regression
+            lstms_res = np.full(lstms_pca.shape, np.nan)
+            for player_id in np.arange(n_players):
+
+                lstms = lstms_pca[player_id, ...]
+                confounds = combined[player_id, ...]
+
+                residuals = confound_regression(confounds, lstms)
+                lstms_res[player_id] = residuals
+
+            print("Finished confound regression for "
+                  f"map {map_id} repeat {repeat_id}")
+            
+            np.save(f'results/lstms-pca_reg-all_matchup-{matchup_id}'
                     f'_map-{map_id}_repeat-{repeat_id}.npy', lstms_res)
