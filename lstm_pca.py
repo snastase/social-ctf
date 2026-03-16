@@ -51,19 +51,19 @@ for map_id in np.arange(n_maps):
                   f"repeat {repeat_id}, player {player_id}")
 
 # Function for reduced-memory incremental eigendecomposition
-def incremental_pca(data, n_components=None, n_samples=None, filename=None):
+def incremental_pca(data, n_components=None, n_total=None, filename=None):
 
     # If number of samples isn't specified, infer from data
     n_features = data.shape[1]
-    if not n_samples:
-        n_samples = data.shape[0]
+    if not n_total:
+        n_total = data.shape[0]
     
     # Incrementally populate covariance matrix
     cov = np.zeros((n_features, n_features))
     game_count = 0
-    for i, row in zip(np.arange(n_samples), data):
+    for i, row in zip(np.arange(n_total), data):
         outer = np.outer(row, row)
-        cov += outer / (n_samples - 1)
+        cov += outer / (n_total - 1)
         if (i + 1) % (4 * 4501) == 0:
             print(f"Finished computing game {game_count} covariance")
             game_count += 1
@@ -89,23 +89,11 @@ def incremental_pca(data, n_components=None, n_samples=None, filename=None):
 
 pca_filename = f'results/lstms-stack_tanh-z_pca-proj_matchup-{matchup_id}.npy'
 proj, vals, vecs = incremental_pca(lstms_stack, n_components=n_lstms,
-                                   n_samples=n_total,
+                                   n_total=n_total,
                                    filename=pca_filename)
 
 np.save(f'results/lstms-stack_tanh-z_pca-vals_matchup-{matchup_id}.npy', vals)
 np.save(f'results/lstms-stack_tanh-z_pca-vecs_matchup-{matchup_id}.npy', vecs)
-
-
-# Compute proportion variance explained from eigenvalues
-vaf = vals / np.sum(vals)
-
-# Compute number of components required for percentage variance
-percents = [.5, .75, .9, .95, .99]
-for i, perc in enumerate(percents):
-    k = np.sum(np.cumsum(vaf) <= perc) + 1
-    print(f"{perc:.0%} variance: {k} PCs")
-
-print(f"100 PCs: {np.cumsum(vaf)[100]:.0%}")
 
 
 # Un-stack PCA-transformed data for maps, repeats, players
@@ -122,7 +110,25 @@ for map_id in np.arange(n_maps):
         print(f"Extracted map {map_id}, repeat {repeat_id} "
               f"(stacked rows {start} to {end})")
 
-    
+
+# Reload in PCA eigenvalues and eigenvectors
+matchup_id = 0
+
+vals = np.load(f'results/lstms-stack_tanh-z_pca-vals_matchup-{matchup_id}.npy')
+vecs = np.load(f'results/lstms-stack_tanh-z_pca-vecs_matchup-{matchup_id}.npy')
+        
+# Compute proportion variance explained from eigenvalues
+vaf = vals / np.sum(vals)
+
+# Compute number of components required for percentage variance
+percents = [.5, .75, .9, .95, .99]
+for i, perc in enumerate(percents):
+    k = np.sum(np.cumsum(vaf) <= perc) + 1
+    print(f"{perc:.0%} variance: {k} PCs")
+
+print(f"100 PCs: {np.cumsum(vaf)[100]:.0%}")
+
+        
 # Plot scree plot of variance accounted
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -136,24 +142,29 @@ for i, perc in enumerate(percents):
     k = np.sum(vaf_cum <= perc) + 1     
     percents_vaf[k] = perc
 
-fig, ax = plt.subplots(figsize=(5.5, 4.5))
-ax.scatter(dimensions, vaf, color='.5')
-ax.scatter(dimensions[:pca_k], vaf[:pca_k], color='tab:red')
-ax.set_xlabel('dimensions', size=12)
-ax.set_ylabel('proportion of\nvariance explained', size=12)
+sns.set(style='ticks', font_scale=1.2)
+fig, ax = plt.subplots(figsize=(4, 3.3))
+ax.scatter(dimensions[pca_k:], vaf[pca_k:], color='.7')
+ax.scatter(dimensions[:pca_k], vaf[:pca_k], color='darkgoldenrod')
+ax.set_xlabel('dimensions')
+ax.set_ylabel('proportion of\nvariance explained')
+#ax.set_yticks([])
+ax.set_yticks([0, .05, .1, .15])
+ax.set_ylim([-.0075, .15])
 for k, perc in percents_vaf.items():
-    ax.axvline(k, 0, .35, color='.5', zorder=-1)
-    ax.annotate(f'{perc:.0%}', xy=(k + 10, .37), ha='center',
+    ax.axvline(k, 0, .25, color='.5', zorder=-1)
+    ax.annotate(f'{perc:.0%}', xy=(k + 10, .27), ha='center',
                 xycoords=('data', 'axes fraction'))
 axins = inset_axes(ax, width=1.2, height=1)
-axins.scatter(dimensions, vaf_cum, color='.5')
-axins.scatter(dimensions[:pca_k], vaf_cum[:pca_k], color='tab:red')
+axins.scatter(dimensions, vaf_cum, color='.7')
+axins.scatter(dimensions[:pca_k], vaf_cum[:pca_k], color='darkgoldenrod')
 axins.xaxis.set_ticks([])
 axins.yaxis.set_ticks([])
 axins.set_xlabel('dimensions', size=12)
 axins.set_ylabel('cumulative\nvariance', size=12)
-plt.savefig(f'figures/scree_pca-k{pca_k}_matchup-{matchup_id}.png', dpi=300,
-            bbox_inches='tight')
+sns.despine()
+plt.savefig(f'figures/scree_pca-k{pca_k}_matchup-{matchup_id}.svg', dpi=300,
+            bbox_inches='tight', transparent=True)
 
 
 # Plot PC time series for individual games (with simple ISC)
@@ -163,26 +174,38 @@ matchup_id = 0
 map_id = 0
 repeat_id = 0
 
-for pc_id in np.arange(10):
+#for pc_id in np.arange(10):
+for pc_id in [4, 6]:
     lstms_pc = np.load(f'results/lstms-pca_matchup-{matchup_id}_'
                        f'map-{map_id}_repeat-{repeat_id}.npy')[..., pc_id]
 
-    fig, axs = plt.subplots(2, 1, figsize=(12, 3))
+    sns.set(style='ticks', font_scale=1.1)
+    fig, axs = plt.subplots(2, 1, figsize=(7.5, 1.25))
     axs[0].plot(lstms_pc[0], c='darkred', alpha=.7)
     axs[0].plot(lstms_pc[1], c='coral', alpha=.7)
-    axs[0].set(xticks=[], ylabel='activation', xlim=(0, 4500))
-    axs[0].set_title(f'PC{pc_id + 1} (map {map_id}, repeat {repeat_id})')
-    axs[0].annotate(f'ISC: {pearsonr(lstms_pc[0], lstms_pc[1])[0]:.3f}', (.99, 1),
-                    ha='right', va='bottom', xycoords='axes fraction')
+    axs[0].set(xticks=[], yticks=[], ylabel=None, xlim=(0, 4500))
+    #axs[0].set_title(f'PC{pc_id + 1} (map {map_id}, repeat {repeat_id})')
+    axs[0].annotate(f'ISC: {pearsonr(lstms_pc[0], lstms_pc[1])[0]:.3f}',
+                    (1, 1), ha='right', va='top',
+                    xycoords='axes fraction',
+                    bbox={'facecolor': 'w', 'edgecolor': 'none',
+                          'alpha': .7})
     axs[1].plot(lstms_pc[2], c='darkblue', alpha=.7)
     axs[1].plot(lstms_pc[3], c='lightseagreen', alpha=.7)
-    axs[1].set(xticks=[], ylabel='activation', xlim=(0, 4500))
-    axs[1].annotate(f'ISC: {pearsonr(lstms_pc[2], lstms_pc[3])[0]:.3f}', (.99, 1),
-                    ha='right', va='bottom', xycoords='axes fraction')
+    axs[1].set(xlabel='time', yticks=[], ylabel=None, xlim=(0, 4500))
+    axs[1].annotate(f'ISC: {pearsonr(lstms_pc[2], lstms_pc[3])[0]:.3f}',
+                    (1, 1), ha='right', va='top',
+                    xycoords='axes fraction',
+                    bbox={'facecolor': 'w', 'edgecolor': 'none',
+                          'alpha': .7})
+    fig.text(0.09, 0.5, f'PC{pc_id + 1}',
+             va='center', rotation='vertical')
     sns.despine()
+    plt.subplots_adjust(hspace=.3)
+    #plt.tight_layout()
     plt.savefig((f'figures/pca-ts_pc-{pc_id + 1}_matchup-{matchup_id}_'
-                 f'map-{map_id}_repeat-{repeat_id}.png'),
-                dpi=300, bbox_inches='tight')
+                 f'map-{map_id}_repeat-{repeat_id}.svg'),
+                dpi=300, bbox_inches='tight', transparent=True)
 
 
 # Horizontally stack cooperative pairs of players and compute joint PCA
@@ -223,18 +246,6 @@ np.save((f'results/lstms-coop-stack_tanh-z_'
          f'pca-vals_matchup-{matchup_id}.npy'), vals)
 np.save((f'results/lstms-coop-stack_tanh-z_'
          f'pca-vecs_matchup-{matchup_id}.npy'), vecs)
-
-
-# Compute proportion variance explained from eigenvalues
-vaf = vals / np.sum(vals)
-
-# Compute number of components required for percentage variance
-percents = [.5, .75, .9, .95, .99]
-for i, perc in enumerate(percents):
-    k = np.sum(np.cumsum(vaf) <= perc) + 1
-    print(f"{perc:.0%} variance: {k} PCs")
-
-print(f"100 PCs: {np.cumsum(vaf)[100]:.0%}")
         
 
 # Horizontally stack competitive pairs of players and compute joint PCA
@@ -281,6 +292,25 @@ for p, pair in enumerate(pairs):
             f'pca-vecs_matchup-{matchup_id}.npy', vecs)
 
 
+# Reload in PCA eigenvalues and eigenvectors
+matchup_id = 0
+              
+vals = np.load(f'results/lstms-coop-stack_tanh-z_'
+               f'pca-vals_matchup-{matchup_id}.npy')
+vecs = np.load(f'results/lstms-coop-stack_tanh-z_'
+               f'pca-vecs_matchup-{matchup_id}.npy')
+
+
+# Compute proportion variance explained from eigenvalues
+vaf = vals / np.sum(vals)
+
+# Compute number of components required for percentage variance
+percents = [.5, .75, .9, .95, .99]
+for i, perc in enumerate(percents):
+    k = np.sum(np.cumsum(vaf) <= perc) + 1
+    print(f"{perc:.0%} variance: {k} PCs")
+
+print(f"100 PCs: {np.cumsum(vaf)[100]:.0%}")
     # Compute proportion variance explained from eigenvalues
     vaf = vals / np.sum(vals)
 
