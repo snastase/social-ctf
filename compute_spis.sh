@@ -7,7 +7,7 @@
 #SBATCH --partition=all
 
 # How long is job (in minutes)?
-#SBATCH --time=840
+#SBATCH --time=360
 
 # How much memory to allocate (in MB)?
 #SBATCH --cpus-per-task=1 --mem=8000

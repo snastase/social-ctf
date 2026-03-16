@@ -1,10 +1,5 @@
-#!/usr/bin/env python3
-
-from itertools import product
-from sys import argv
 from os.path import exists
 import numpy as np
-from pyspi.calculator import Calculator
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import seaborn as sns
@@ -18,12 +13,14 @@ from sklearn.metrics import accuracy_score, balanced_accuracy_score
 
 
 n_maps = 32
+n_repeats = 32
 n_pcs = 142
+n_players = 4
 matchup_id = 0
-repeat_id = 0
-
 
 # Load in SPI labels
+table_f = (f'results/spis-fast_pc-0_matchup-0_'
+           f'map-0_repeat-0.csv')
 example = pd.read_csv(table_f, header=[0, 1], index_col=[0])
 spi_labels = list(example.columns.levels[0])
 
@@ -38,51 +35,51 @@ spi_npz = np.load(spi_f, allow_pickle=True)
 spi_dict = dict(spi_npz)
 
 for spi_label in spi_labels:
-    spi_stack = []
+    spi_stack = np.full((n_maps, n_repeats, n_pcs, n_players, n_players),
+                        np.nan)
     for map_id in np.arange(n_maps):
-        map_stack = []
-        for pc_id in np.arange(n_pcs):
-            table_f = (f'results/spis-fast_pc-{pc_id}_matchup-{matchup_id}_'
-                       f'map-{map_id}_repeat-{repeat_id}.csv')
-            table = pd.read_csv(table_f, header=[0, 1],
-                                index_col=[0])[spi_label].to_numpy()
-            map_stack.append(table)
-            print(f"Loaded map {map_id}, PC{pc_id + 1} ({spi_label})")
+        for repeat_id in np.arange(n_repeats):
+            for pc_id in np.arange(n_pcs):
+                table_f = (f'results/spis-fast_pc-{pc_id}_'
+                           f'matchup-{matchup_id}_map-{map_id}_'
+                           f'repeat-{repeat_id}.csv')
+                table = pd.read_csv(table_f, header=[0, 1],
+                                    index_col=[0])[spi_label].to_numpy()
+                
+                if table.dtype == 'object':
+                    print(f"Ignoring {spi_label} due to unusual encoding")
+                    continue
+                
+                spi_stack[map_id, repeat_id, pc_id] = table
+            print(f"Loaded map {map_id}, repeat {repeat_id} ({spi_label})")
         print(f"Loaded all PCs for map {map_id} ({spi_label})")
-        spi_stack.append(map_stack)
 
-    spi_stack = np.array(spi_stack)
-
-    if not spi_dict[spi_label]:
-        spi_dict[spi_label] = spi_stack
-        np.savez(spi_f, **spi_dict)
+    spi_dict[spi_label] = spi_stack
+    np.savez(spi_f, **spi_dict)
 
 
 # Manually add in Pearson correlation for convenience
-repeat_id = 0
 pearson_labels = ['pearsonr', 'pearsonr-sq']
 spi_labels += pearson_labels
 
 for spi_label in pearson_labels:
-
-    spi_stack = []
+    spi_stack = np.full((n_maps, n_repeats, n_pcs, n_players, n_players),
+                        np.nan)
     for map_id in np.arange(n_maps):
+        for repeat_id in np.arange(n_repeats):
+            lstms = np.load(f'results/lstms-pca_matchup-{matchup_id}_'
+                            f'map-{map_id}_repeat-{repeat_id}.npy')    
+            for pc_id in np.arange(n_pcs):
+                table = np.corrcoef(lstms[..., pc_id])
 
-        lstms = np.load(f'results/lstms-pca_matchup-{matchup_id}_'
-                        f'map-{map_id}_repeat-{repeat_id}.npy')    
+                if spi_label == 'pearson-sq':
+                    table = np.square(table)
 
-        map_stack = []
-        for pc_id in np.arange(n_pcs):
-            table = np.corrcoef(lstms[..., pc_id])
-            
-            if spi_label == 'pearson-sq':
-                table = np.square(table)
-            
-            map_stack.append(table)
-        print(f"Loaded all PCs for map {map_id} ({spi_label})")
-        spi_stack.append(map_stack)
+                spi_stack[map_id, repeat_id, pc_id] = table
 
-    spi_stack = np.array(spi_stack)
+            print(f"Loaded all PCs for map {map_id}, "
+                  f"repeat {repeat_id} ({spi_label})")
+
     spi_dict[spi_label] = spi_stack
     np.savez(spi_f, **spi_dict)
 
@@ -206,8 +203,12 @@ fav_spis = {'pearsonr':
              'keywords': ['pairwise distance']},
             'pdist_cosine':
             {'name': 'cosine distance',
-             'keywords': ['pairwise distance']}}
-
+             'keywords': ['pairwise distance']},
+            'coint_aeg_tstat_trend-ct_autolag-bic_maxlag-10':
+            {'name': 'cointegration',
+             'keywords': ['undirected', 'linear', 'unsigned',
+                          'bivariate', 'time-dependent']}}
+            
 with open('results/fav_spi_keywords.json', 'w') as f:
     json.dump(fav_spis, f, sort_keys=True, indent=2)
     
@@ -215,23 +216,23 @@ with open('results/fav_spi_keywords.json', 'r') as f:
     fav_spis = json.load(f)
 
 
-# Load in pre-exiting SPIs
+# Load in pre-existing SPIs
 spi_npz = np.load(spi_f, allow_pickle=True)
 
 # Loop through SPIs for cooperative/competitive classification
 def pair_classification(spi_npz, pc_id=None):
-    results = dict.fromkeys(spi_labels + ['pearsonr'])
+    results = dict.fromkeys(spi_labels)
     for spi_label in results.keys():
         print(f'Running classification on "{spi_label}"')
 
         spi_data = spi_npz[spi_label]
         if pc_id is not None:
-            spi_data = spi_data[:, pc_id]
-            spi_data = spi_data[:, np.newaxis, ...]
+            spi_data = spi_data[:, :, pc_id]
+            spi_data = spi_data[:, :, np.newaxis, ...]
 
         if spi_data.dtype != float:
             print(f'Skipping "{spi_label}" with {spi_data.dtype}')
-            continue
+            #continue
 
         # Extract off-diagonal triangle(s) from SPI tables 
         spi_triu = spi_data[..., np.triu_indices(4, k=1)[0],
@@ -261,17 +262,19 @@ def pair_classification(spi_npz, pc_id=None):
 
         spi_long, pair_ids, map_ids = [], [], []
         for map_id in np.arange(n_maps):
-            for pair_id in np.arange(n_pairs):
-                spi_long.append(spi_tri[map_id, :, pair_id])
-                pair_ids.append(1 if pair_id in coop_ids else 0)
-                map_ids.append(map_id)
+            for repeat_id in np.arange(n_repeats):
+                for pair_id in np.arange(n_pairs):
+                    spi_long.append(spi_tri[map_id, repeat_id, :, pair_id])
+                    pair_ids.append(1 if pair_id in coop_ids else 0)
+                    map_ids.append(map_id)
 
         assert len(spi_long) == len(pair_ids) == len(map_ids)
         spi_long = np.nan_to_num(spi_long)
         pair_ids, map_ids = np.array(pair_ids), np.array(map_ids)
 
         # Initialize simple classifier
-        clf = LogisticRegression(class_weight='balanced')
+        clf = LogisticRegression(penalty='none', class_weight='balanced',
+                                 max_iter=200)
 
         # Set up leave-one-map-out cross-validation
         cv = PredefinedSplit(map_ids)
@@ -293,10 +296,9 @@ def pair_classification(spi_npz, pc_id=None):
             # Evaluate classifier accuracy
             score = balanced_accuracy_score(pair_ids[test], pred)
             scores.append(score)
-            #print(f"Fold {f} accuracy: {score:.3f} ({spi_label})")
 
         results[spi_label] = np.array(scores)
-        print(f'Mean "{spi_label}" accuracy: {np.mean(score):.3f}\n')
+        print(f'Mean "{spi_label}" accuracy: {np.mean(scores):.3f}\n')
         
     return results
 
@@ -323,17 +325,25 @@ for spi_label in fav_spis:
           f"{fav_spis[spi_label]['keywords']}")
 
 # Plot histogram of competitive/cooperative classification performance
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.histplot(pair_means.values(), bins=14, binrange=(.4, 1.0), 
-             stat='probability', palette='Greys', legend=False, ax=ax)
-ax.set(xlabel='balanced accuracy', ylabel='proportion of SPIs',
-       title='cooperative vs. competitive pair classification',
+sns.set(style='ticks', font_scale=1)
+fig, ax = plt.subplots(figsize=(4.2, 4))
+sns.histplot(pair_means.values(), bins=12, binrange=(.4, 1.0), 
+             stat='probability', legend=False, ax=ax,
+             palette=['.6'])
+ax.set(xlabel='balanced accuracy', ylabel='proportion of\npairwise metrics',
        xlim=(.4, 1.))
-ax.vlines(.5, ymin=0, ymax=.5, color='goldenrod', ls='--', lw=1, zorder=0)
-ax.annotate('chance = .50', xy=(.51, .49), xycoords='data', va='top')
-sns.despine(right=False, trim=True)
-plt.savefig(f'figures/clf-pair_histogram_matchup-{matchup_id}.png',
-            dpi=300, bbox_inches='tight')
+ax.set_title('cooperative vs. competitive\npair classification',
+             x=.44, y=.791)
+ax.vlines(.5, ymin=0, ymax=.48, color='.4', ls='--', lw=1.5)
+ax.annotate('chance = .50', xy=(.495, .25), xycoords='data', va='center',
+            ha='right', rotation='vertical')
+ax.vlines(1., ymin=0, ymax=.55, color='darkgoldenrod', ls='--', lw=1.5,
+          clip_on=False)
+ax.annotate('ISC', xy=(.967, .504),
+            xycoords='data', ha='center', va='bottom')
+sns.despine(trim=True)
+plt.savefig(f'figures/clf-pair_histogram_matchup-{matchup_id}.svg',
+            dpi=300, bbox_inches='tight', transparent=True)
 
 
 # Run cooperative/competitive classification per PC
@@ -369,7 +379,8 @@ for spi_label in fav_spis:
                   f'\nSPI = {spi_name}'))
     yticks = np.array((.25, .5, .75, 1.))
     ax.set_ylim((yticks[0] - .5, yticks[-1] - .5))
-    ax.set_yticks(yticks - .5, yticks)
+    ax.set_yticks(yticks - .5)
+    ax.set_yticklabels(yticks)
     ax.axhline(0, c='goldenrod', ls='--', lw=1)
     handle = [Line2D([0], [0], color='goldenrod', lw=1,
                      ls='--', label='chance = .50')]
@@ -391,7 +402,7 @@ for spi_label in spi_labels:
     
     if spi_data.dtype != float:
         print(f'Skipping "{spi_label}" with {spi_data.dtype}')
-        continue
+        #continue
 
     # Extract off-diagonal triangle(s) from SPI tables 
     spi_triu = spi_data[..., np.triu_indices(4, k=1)[0],
@@ -409,16 +420,18 @@ for spi_label in spi_labels:
         spi_tri = np.concatenate((spi_triu, spi_tril), axis=-1)
         print("Found asymmetric SPI table; concatenating triangles")
 
-    # Z-score data across all pairs and maps
+    n_players = 4
+    n_pairs = n_players * (n_players - 1) // 2
+    coop_ids, comp_ids = (0, 5), (1, 2, 3, 4)        
+
+    # Z-score data across all pairs, maps, and repeats
     spi_stack = np.squeeze(np.vstack(np.split(
-        spi_tri, spi_tri.shape[-1], axis=-1)))
+        np.squeeze(np.vstack(np.split(
+            spi_tri, n_repeats, axis=1))),
+        spi_tri.shape[-1], axis=-1)))
     spi_stack = zscore(spi_stack, axis=0)
     spi_data = np.stack(np.split(
         spi_stack, spi_tri.shape[-1], axis=0), axis=-1)
-    
-    n_players = 4
-    n_pairs = n_players * (n_players - 1) // 2
-    coop_ids, comp_ids = (0, 5), (1, 2, 3, 4)
     
     if symmetric:
         coop_spis = spi_data[..., coop_ids]
@@ -445,7 +458,7 @@ for spi_label in fav_spis:
     fig, ax = plt.subplots(figsize=(10, 2.5))
     t = ttest_results[spi_label]['t-values']
     ax.bar(np.arange(n_pcs) + 1, t, color='.5')
-    ax.set(xlabel='PC', ylabel='t-value', xlim=(0, 143), ylim=(-60, 60),
+    ax.set(xlabel='PC', ylabel='t-value', xlim=(0, 143), ylim=(-300, 300),
            title=(f'standardized difference '
                   f'(cooperative \N{MINUS SIGN} competitive)'
                   f'\nSPI = {spi_name}'))
@@ -457,21 +470,23 @@ for spi_label in fav_spis:
 # Loop through cooperative SPIs for win/loss classification
 def win_classification(spi_npz, pc_id=None):
     
-    wins = np.load(f'results/wins_matchup-{matchup_id}.npy')[:, repeat_id]
+    #wins = np.load(f'results/wins_matchup-{matchup_id}.npy')
+    wins = np.load(f'results/wins_matchup-{matchup_id}.npy').astype('float64')
+    wins_draw = -(1 - 2 * wins) * np.expand_dims(np.sum(wins, axis=-1), 2)
     
-    results = dict.fromkeys(spi_labels + ['pearsonr'])
+    results = dict.fromkeys(spi_labels)
     for spi_label in results.keys():
         print(f'Running classification on "{spi_label}"')
 
         spi_data = spi_npz[spi_label]
         if pc_id is not None:
-            spi_data = spi_data[:, pc_id]
-            spi_data = spi_data[:, np.newaxis, ...]
+            spi_data = spi_data[:, :, pc_id]
+            spi_data = spi_data[:, :, np.newaxis, ...]
 
         if spi_data.dtype != float:
             print(f'Skipping "{spi_label}" with {spi_data.dtype}')
             continue
-
+            
         # Extract off-diagonal triangle(s) from SPI tables 
         spi_triu = spi_data[..., np.triu_indices(4, k=1)[0],
                                  np.triu_indices(4, k=1)[1]]
@@ -499,21 +514,29 @@ def win_classification(spi_npz, pc_id=None):
 
         spi_long, win_ids, map_ids = [], [], []
         for map_id in np.arange(n_maps):
-            for p, pair_id in enumerate(np.arange(len(coop_ids))):
-                spi_long.append(spi_tri[map_id, :, pair_id])
-                map_ids.append(map_id)
-                                     
-                if not symmetric and p >= 2:
-                    win_ids.append(wins[map_id, pair_id - 2])
-                else:
-                    win_ids.append(wins[map_id, pair_id])
+            for repeat_id in np.arange(n_repeats):
+                
+                #if np.sum(wins[map_id, repeat_id]) == 0:
+                #    continue
+                
+                #for p, pair_id in enumerate(np.arange(len(coop_ids))):
+                for p, pair_id in enumerate(coop_ids):
+                    spi_long.append(spi_tri[map_id, repeat_id, :, pair_id])
+                    map_ids.append(map_id)
+
+                    if not symmetric and p >= 2:
+                        win_ids.append(wins[map_id, repeat_id, p - 2])
+                    else:
+                        win_ids.append(wins[map_id, repeat_id, p])
 
         assert len(spi_long) == len(win_ids) == len(map_ids)
         spi_long = np.nan_to_num(spi_long)
         win_ids, map_ids = np.array(win_ids), np.array(map_ids)
+        print(win_ids.shape)
 
         # Initialize simple classifier
-        clf = LogisticRegression(class_weight='balanced')
+        clf = LogisticRegression(penalty='none', max_iter=300,
+                                 class_weight='balanced')
 
         # Set up leave-one-map-out cross-validation
         cv = PredefinedSplit(map_ids)
@@ -538,7 +561,7 @@ def win_classification(spi_npz, pc_id=None):
             #print(f"Fold {f} accuracy: {score:.3f} ({spi_label})")
 
         results[spi_label] = np.array(scores)
-        print(f'Mean "{spi_label}" accuracy: {np.mean(score):.3f}\n')
+        print(f'Mean "{spi_label}" accuracy: {np.mean(scores):.3f}\n')
         
     return results
 
@@ -566,17 +589,23 @@ for spi_label in fav_spis:
           f"{fav_spis[spi_label]['keywords']}")    
 
 # Plot histogram of win classification performance
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.histplot(win_means.values(), bins=15, binrange=(.25, 1.0), 
-             stat='probability', palette='Greys', legend=False, ax=ax)
-ax.set(xlabel='balanced accuracy', ylabel='proportion of SPIs',
-       title='win classification',
-       xlim=(.25, 1.), ylim=(0, .5))
-ax.vlines(.5, ymin=0, ymax=.5, color='goldenrod', ls='--', lw=1, zorder=0)
-ax.annotate('chance = .50', xy=(.515, .42), xycoords='data', va='top')
+sns.set(style='ticks', font_scale=1.1)
+fig, ax = plt.subplots(figsize=(3.6, 3.3))
+sns.histplot(win_means.values(), bins=24, binrange=(.4, 1.0), 
+             stat='probability', palette=['.6'], legend=False, ax=ax)
+ax.set(xlabel='balanced accuracy', ylabel='proportion of\npairwise metrics',
+       xlim=(.45, .825), ylim=(0, .3))
+ax.vlines(.5, ymin=0, ymax=.28, color='.4', ls='--', lw=1.5)
+#ax.annotate('chance = .50', xy=(.51, .29), xycoords='data', va='top')
+ax.annotate('chance = .50', xy=(.498, .17), xycoords='data',
+            ha='right', va='center', rotation='vertical')
+ax.vlines(.708, ymin=0, ymax=.17, color='darkgoldenrod', ls='--', lw=1.5)
+ax.annotate('ISC', xy=(.708, .173),
+            xycoords='data', ha='center', va='bottom')
+ax.set_title('win/loss classification', va='top', x=.53, y=.99)
 sns.despine()
-plt.savefig(f'figures/clf-win_histogram_matchup-{matchup_id}.png',
-            dpi=300, bbox_inches='tight')
+plt.savefig(f'figures/clf-win_histogram_matchup-{matchup_id}.svg',
+            dpi=300, bbox_inches='tight', transparent=True)
 
 # Run win classification per PC
 win_pc_results = {}
@@ -600,39 +629,42 @@ for spi_label in win_results:
 
 # Plot barplots of PC-wise win decoding accuracy
 for spi_label in fav_spis:
-    spi_name = fav_spis[spi_label]['name']
-    fig, ax = plt.subplots(figsize=(10, 2.5))
-    ax.bar(np.arange(142) + 1,
-           np.nanmean(win_pcs[spi_label], axis=0) - .5,
-           color='.5')
-    ax.set(xlabel='PC', ylabel='balanced accuracy', xlim=(0, 143),
-           title=(f'win classification'
-                  f'\nSPI = {spi_name}'))
-    yticks = np.array((.1, .2, .3, .4, .5, .6, .7, .8, .9))
-    ax.set_ylim((yticks[0] - .5, yticks[-1] - .5))
-    ax.set_yticks(yticks - .5, yticks)
-    ax.axhline(0, c='goldenrod', ls='--', lw=1)
-    handle = [Line2D([0], [0], color='goldenrod', lw=1,
-                     ls='--', label='chance = .50')]
-    ax.legend(handles=handle, loc='upper right', frameon=False)
-    sns.despine()
-    plt.savefig(f'figures/clf-win_bar-{spi_label}_matchup-{matchup_id}.png',
-                dpi=300, bbox_inches='tight')
+    if spi_label != 'pearsonr-sq':
+        spi_name = fav_spis[spi_label]['name']
+        fig, ax = plt.subplots(figsize=(10, 2.5))
+        ax.bar(np.arange(142) + 1,
+               np.nanmean(win_pcs[spi_label], axis=0) - .5,
+               color='.5')
+        ax.set(xlabel='PC', ylabel='balanced accuracy', xlim=(0, 143),
+               title=(f'win classification'
+                      f'\nSPI = {spi_name}'))
+        yticks = np.array((.1, .2, .3, .4, .5, .6, .7, .8, .9))
+        ax.set_ylim((yticks[0] - .5, yticks[-1] - .5))
+        ax.set_yticks(yticks - .5)
+        ax.set_yticklabels(yticks)
+        ax.axhline(0, c='goldenrod', ls='--', lw=1)
+        handle = [Line2D([0], [0], color='goldenrod', lw=1,
+                         ls='--', label='chance = .50')]
+        ax.legend(handles=handle, loc='upper right', frameon=False)
+        sns.despine()
+        plt.savefig(f'figures/clf-win_bar-{spi_label}_matchup-{matchup_id}.png',
+                    dpi=300, bbox_inches='tight')
     
     
 # Loop through cooperative SPIs for score prediction
 def score_regression(spi_npz, pc_id=None, n_splits=4):
     
-    scores = np.load(f'results/scores_matchup-{matchup_id}.npy')[:, repeat_id]
+    scores = np.load(
+        f'results/scores_matchup-{matchup_id}.npy').astype('float64')
     
-    results = dict.fromkeys(spi_labels + ['pearsonr'])
+    results = dict.fromkeys(spi_labels)
     for spi_label in results.keys():
         print(f'Running regression on "{spi_label}"')
 
         spi_data = spi_npz[spi_label]
         if pc_id is not None:
-            spi_data = spi_data[:, pc_id]
-            spi_data = spi_data[:, np.newaxis, ...]
+            spi_data = spi_data[:, :, pc_id]
+            spi_data = spi_data[:, :, np.newaxis, ...]
 
         if spi_data.dtype != float:
             print(f'Skipping "{spi_label}" with {spi_data.dtype}')
@@ -665,14 +697,33 @@ def score_regression(spi_npz, pc_id=None, n_splits=4):
 
         spi_long, score_ids, map_ids = [], [], []
         for map_id in np.arange(n_maps):
-            for p, pair_id in enumerate(np.arange(len(coop_ids))):
-                spi_long.append(spi_tri[map_id, :, pair_id])
-                map_ids.append(map_id)
-                                     
-                if not symmetric and p >= 2:
-                    score_ids.append(scores[map_id, pair_id - 2])
+            for repeat_id in np.arange(n_repeats):
+                #for p, pair_id in enumerate(np.arange(len(coop_ids))):
+                #for p, pair_id in enumerate(pair_ids):
+                #spi_long.append(spi_tri[map_id, repeat_id, :, pair_id])
+                if not symmetric:
+                    spi_long.extend([(spi_tri[map_id, repeat_id,
+                                              :, coop_ids[0]] - 
+                                      spi_tri[map_id, repeat_id,
+                                              :, coop_ids[1]]),
+                                     (spi_tri[map_id, repeat_id,
+                                              :, coop_ids[2]] - 
+                                      spi_tri[map_id, repeat_id,
+                                              :, coop_ids[3]])])
+                    score_ids.extend([(scores[map_id, repeat_id, 0] - 
+                                       scores[map_id, repeat_id, 1]),
+                                      (scores[map_id, repeat_id, 0] - 
+                                       scores[map_id, repeat_id, 1])])
+                    map_ids.extend([map_id, map_id])
+
                 else:
-                    score_ids.append(scores[map_id, pair_id])
+                    spi_long.append((spi_tri[map_id, repeat_id,
+                                             :, coop_ids[0]] - 
+                                     spi_tri[map_id, repeat_id,
+                                            :, coop_ids[1]]))
+                    score_ids.append((scores[map_id, repeat_id, 0] -
+                                      scores[map_id, repeat_id, 1]))
+                    map_ids.append(map_id)
 
         assert len(spi_long) == len(score_ids) == len(map_ids)
         spi_long = np.nan_to_num(spi_long)
@@ -699,16 +750,16 @@ def score_regression(spi_npz, pc_id=None, n_splits=4):
             pred = reg.predict(spi_test)
 
             # Evaluate classifier accuracy
-            reg_score = spearmanr(score_ids[test], pred)[0]
+            reg_score = pearsonr(score_ids[test], pred)[0]
             reg_scores.append(reg_score)
             #print(f"Fold {f} accuracy: {score:.3f} ({spi_label})")
 
         results[spi_label] = np.array(reg_scores)
-        print(f'Mean "{spi_label}" accuracy: {np.mean(reg_score):.3f}\n')
+        print(f'Mean "{spi_label}" accuracy: {np.mean(reg_scores):.3f}\n')
         
     return results
 
-n_splits = 4
+n_splits = 32
 score_results = score_regression(spi_npz, n_splits=n_splits)
 
 np.save(f'results/reg-score_X-all_spi-fast_matchup-{matchup_id}.npy',
@@ -729,19 +780,25 @@ score_ranks = {k: score_means[k] for k in
 
 for spi_label in fav_spis:
     print(f"Correlation for {fav_spis[spi_label]['name']}: "
-          f"{win_means[spi_label]:.3f}\n\t"
+          f"{score_means[spi_label]:.3f}\n\t"
           f"{fav_spis[spi_label]['keywords']}")  
 
-# Plot histogram of win classification performance
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.histplot(score_means.values(), bins=16, binrange=(-.4, .4), 
-             stat='probability', palette='Greys', legend=False, ax=ax)
-ax.set(xlabel='Spearman correlation\n(predicted vs. actual)',
-       ylabel='proportion of SPIs', ylim=(0, .16),
-       title=f'score prediction ({n_splits}-fold OLS regression)')
+# Plot histogram of score prediction performance
+sns.set(style='ticks', font_scale=1.1)
+fig, ax = plt.subplots(figsize=(3.6, 3.3))
+sns.histplot(score_means.values(), bins=20, binrange=(-.1, .9), 
+             stat='probability', palette=['.6'], legend=False, ax=ax)
+ax.set(ylabel='proportion of\npairwise metrics', ylim=(0, .14))
+       #title=f'score prediction')
+ax.set_xlabel('correlation (predicted vs. actual)', x=.465)
+ax.set_title('score prediction', va='top', x=.38, y=.99,)
+ax.vlines(.717, ymin=0, ymax=.14, color='darkgoldenrod', ls='--', lw=1.5)
+ax.annotate('ISC', xy=(.735, .132),
+            xycoords='data', ha='left', va='center')
 sns.despine()
-plt.savefig(f'figures/clf-score_histogram_matchup-{matchup_id}.png',
-            dpi=300, bbox_inches='tight')
+plt.savefig(f'figures/clf-score_histogram_matchup-{matchup_id}.svg',
+            dpi=300, bbox_inches='tight', transparent=True)
+
 
 # Run score regression per PC
 score_pc_results = {}
