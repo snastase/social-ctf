@@ -12,7 +12,7 @@ def fisher_mean(correlations, axis=None):
 # Nonparametric bootstrap hypothesis test
 def bootstrap_test(data, bootstrap_axis=0, n_bootstraps=1000,
                    estimator=fisher_mean, ci_percentile=95,
-                   side='two-sided'):
+                   side='two-sided', null_estimate=0):
 
     n_samples = data.shape[bootstrap_axis]
     observed = estimator(data, axis=bootstrap_axis)
@@ -42,7 +42,7 @@ def bootstrap_test(data, bootstrap_axis=0, n_bootstraps=1000,
                         axis=0))
     
     # Shift bootstrap distribution to 0 for hypothesis test
-    shifted = distribution - observed
+    shifted = distribution - observed + null_estimate
     
     # Get p-value for actual median from shifted distribution
     p = p_from_null(observed, shifted,
