@@ -253,10 +253,10 @@ def nested_cvisc(train_samples, test_samples,
     return (joint_scores, nested_scores)
 
 # PC-wise behavior encoding
-def behavior_encoding(train_behav, test_behave,
+def behavior_encoding(train_behav, test_behav,
                       train_lstms, test_lstms,
                       player_width=30, teammate_width=30,
-                      opponent_width=60,
+                      opponent_width=60, n_pcs=142,
                       scorer=pearsonr):    
     W, _, _, _ = lstsq(train_behav, train_lstms)
     
@@ -290,16 +290,16 @@ def behavior_encoding(train_behav, test_behave,
     opponent_scores = []
     for t in np.arange(n_pcs):
         joint_scores.append(
-            scorer(test_lstms[:, t],
+            get_score(test_lstms[:, t],
                    pred_joint[:, t]))
         player_scores.append(
-            scorer(test_lstms[:, t],
+            get_score(test_lstms[:, t],
                    pred_player[:, t]))
         teammate_scores.append(
-            scorer(test_lstms[:, t],
+            get_score(test_lstms[:, t],
                    pred_teammate[:, t]))
         opponent_scores.append(
-            scorer(test_lstms[:, t],
+            get_score(test_lstms[:, t],
                    pred_opponent[:, t]))
     
     return (joint_scores, player_scores,
@@ -365,10 +365,10 @@ def behavior_regression(train_behav, test_behav,
 
 
 # Nested behavior encoding
-def nested_encoding(train_behav, test_behave,
+def nested_encoding(train_behav, test_behav,
                     train_lstms, test_lstms,
                     player_width=30, teammate_width=30,
-                    opponent_width=60,
+                    opponent_width=60, n_pcs=142,
                     scorer=r2_score):
 
     # WE NEED TO ADD INTERCEPT HERE!!!
