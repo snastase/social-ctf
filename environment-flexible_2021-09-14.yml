@@ -1,0 +1,18 @@
+name: ctf
+channels:
+  - defaults
+dependencies:
+  - python=3.7
+  - jupyterlab
+  - git
+  - matplotlib
+  - ffmpeg
+  - numpy
+  - scikit-learn
+  - scipy
+  - h5py
+  - ffmpeg-python
+  - brainiak
+  - seaborn
+  - pingouin
+  - nodejs
