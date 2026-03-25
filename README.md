@@ -33,7 +33,7 @@ This repository contains scripts and notebooks for exploring, analyzing, and vis
 
 * Visualize value and coupling during behavior events compared to matched null events: [`plot_coupling.ipynb`](https://github.com/snastase/social-ctf/blob/master/plot_coupling.ipynb) (**Fig. 6**)
 
-* Classify cooperative behaviors based on dynamic inter-agent cofluctuation across all pairs of LSTM PCs: [`behavior_decoding.py`](https://github.com/snastase/social-ctf/blob/master/behavior_decoding.py) (**Fig. 6**)
+* Classify cooperative behaviors based on dynamic inter-agent cofluctuation across all pairs of LSTM PCs: [`behavior_decoding.py`](https://github.com/snastase/social-ctf/blob/master/behavior_decoding.py), [`cooperative_behavior.ipynb`](https://github.com/snastase/social-ctf/blob/master/cooperative_behavior.ipynb) (**Fig. 6**)
 
 * Run t-SNE embedding on LSTM activity and plot cooperative behavior events: [`andrew/tsne_slurm.py`](https://github.com/snastase/social-ctf/blob/master/andrew/tsne_slurm.py), [`andrew/tsne_slurm.sh`](https://github.com/snastase/social-ctf/blob/master/andrew/tsne_slurm.sh), [`plot_tsne.ipynb`](https://github.com/snastase/social-ctf/blob/master/plot_tsne.ipynb) (**Fig. 6**)
 
