@@ -1,4 +1,4 @@
-# Emergent brain-to-brain coupling and cooperative behavior in an artificial gameplay ecosystem
+# Artificial agents encode the latent neural activity of other agents in a multi-agent gameplay ecosystem
 This repository accompanies a manuscript in preparation by Samuel A. Nastase and Luke Marris examining brain-to-brain coupling and cooperative behavior in deep reinforcement learning agents playing capture the flag.
 
 *Correspondence:* Samuel A. Nastase ([sam.nastase@gmail.com](mailto:sam.nastase@gmail.com))
